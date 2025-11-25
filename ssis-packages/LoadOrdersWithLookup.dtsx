@@ -1,0 +1,339 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationDate="11/25/2025 12:00:00 PM"
+  DTS:CreationName="Microsoft.Package"
+  DTS:CreatorComputerName="ekai-magent-vm"
+  DTS:CreatorName="ekaiadmin"
+  DTS:DTSID="{B2C3D4E5-F678-9012-BCDE-F12345678901}"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:LastModifiedProductVersion="16.0.5556.0"
+  DTS:LocaleID="1033"
+  DTS:ObjectName="LoadOrdersWithLookup"
+  DTS:PackageType="5"
+  DTS:VersionBuild="1"
+  DTS:VersionGUID="{22222222-3333-4444-5555-666666666666}">
+  <DTS:Property DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[NorthwindDB]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{CONN1111-1111-1111-1111-111111111111}"
+      DTS:ObjectName="NorthwindDB">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;Auto Translate=False;">
+        </DTS:ConnectionManager>
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{VAR33333-3333-3333-3333-333333333333}"
+      DTS:Namespace="User"
+      DTS:ObjectName="StartDate">
+      <DTS:VariableValue DTS:DataType="7">1996-01-01T00:00:00</DTS:VariableValue>
+    </DTS:Variable>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{VAR44444-4444-4444-4444-444444444444}"
+      DTS:Namespace="User"
+      DTS:ObjectName="EndDate">
+      <DTS:VariableValue DTS:DataType="7">1998-12-31T00:00:00</DTS:VariableValue>
+    </DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\Create Staging Tables"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Create staging tables if not exists"
+      DTS:DTSID="{EXEC3333-3333-3333-3333-333333333333}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="Create Staging Tables">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CONN1111-1111-1111-1111-111111111111}"
+          SQLTask:SqlStatementSource="
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Orders_Enriched')
+CREATE TABLE dbo.Orders_Enriched (
+    OrderID INT,
+    CustomerID NVARCHAR(5),
+    CustomerName NVARCHAR(40),
+    CustomerCountry NVARCHAR(15),
+    EmployeeID INT,
+    EmployeeName NVARCHAR(50),
+    OrderDate DATETIME,
+    RequiredDate DATETIME,
+    ShippedDate DATETIME,
+    ShipperName NVARCHAR(40),
+    Freight MONEY,
+    TotalOrderValue MONEY,
+    OrderYear INT,
+    OrderMonth INT,
+    DaysToShip INT,
+    IsLateShipment BIT,
+    LoadDate DATETIME
+);
+TRUNCATE TABLE dbo.Orders_Enriched;
+"
+          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\Load Orders With Enrichment"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:Description="Load orders with customer and employee lookups"
+      DTS:DTSID="{DFT22222-2222-2222-2222-222222222222}"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="Load Orders With Enrichment">
+      <DTS:ObjectData>
+        <pipeline version="1">
+          <components>
+            <component
+              refId="Package\Load Orders With Enrichment\Orders Source"
+              componentClassID="Microsoft.OLEDBSource"
+              description="Extract orders data"
+              name="Orders Source"
+              usesDispositions="true"
+              version="7">
+              <properties>
+                <property name="SqlCommand" dataType="System.String">SELECT
+    o.OrderID,
+    o.CustomerID,
+    o.EmployeeID,
+    o.OrderDate,
+    o.RequiredDate,
+    o.ShippedDate,
+    o.ShipVia,
+    o.Freight,
+    (SELECT SUM(UnitPrice * Quantity * (1 - Discount))
+     FROM [Order Details] od WHERE od.OrderID = o.OrderID) as TotalOrderValue
+FROM Orders o
+WHERE o.OrderDate BETWEEN ? AND ?</property>
+                <property name="AccessMode" dataType="System.Int32">2</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Orders With Enrichment\Orders Source.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindDB]"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output]" name="OLE DB Source Output">
+                  <outputColumns>
+                    <outputColumn refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[OrderID]" dataType="i4" name="OrderID" />
+                    <outputColumn refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[CustomerID]" dataType="wstr" length="5" name="CustomerID" />
+                    <outputColumn refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[EmployeeID]" dataType="i4" name="EmployeeID" />
+                    <outputColumn refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[OrderDate]" dataType="dbTimeStamp" name="OrderDate" />
+                    <outputColumn refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[RequiredDate]" dataType="dbTimeStamp" name="RequiredDate" />
+                    <outputColumn refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[ShippedDate]" dataType="dbTimeStamp" name="ShippedDate" />
+                    <outputColumn refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[ShipVia]" dataType="i4" name="ShipVia" />
+                    <outputColumn refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[Freight]" dataType="cy" name="Freight" />
+                    <outputColumn refId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[TotalOrderValue]" dataType="cy" name="TotalOrderValue" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\Load Orders With Enrichment\Lookup Customers"
+              componentClassID="Microsoft.Lookup"
+              description="Lookup customer details"
+              name="Lookup Customers"
+              usesDispositions="true"
+              version="6">
+              <properties>
+                <property name="CacheType" dataType="System.Int32">0</property>
+                <property name="NoMatchBehavior" dataType="System.Int32">0</property>
+                <property name="SqlCommand" dataType="System.String">SELECT CustomerID, CompanyName, Country FROM Customers</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Orders With Enrichment\Lookup Customers.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindDB]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input refId="Package\Load Orders With Enrichment\Lookup Customers.Inputs[Lookup Input]" name="Lookup Input">
+                  <inputColumns>
+                    <inputColumn refId="Package\Load Orders With Enrichment\Lookup Customers.Inputs[Lookup Input].Columns[CustomerID]"
+                      cachedDataType="wstr" cachedLength="5" cachedName="CustomerID"
+                      lineageId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[CustomerID]">
+                      <properties>
+                        <property name="JoinToReferenceColumn" dataType="System.String">CustomerID</property>
+                      </properties>
+                    </inputColumn>
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output refId="Package\Load Orders With Enrichment\Lookup Customers.Outputs[Lookup Match Output]" name="Lookup Match Output">
+                  <outputColumns>
+                    <outputColumn refId="Package\Load Orders With Enrichment\Lookup Customers.Outputs[Lookup Match Output].Columns[CustomerName]" dataType="wstr" length="40" name="CustomerName">
+                      <properties>
+                        <property name="CopyFromReferenceColumn" dataType="System.String">CompanyName</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Load Orders With Enrichment\Lookup Customers.Outputs[Lookup Match Output].Columns[CustomerCountry]" dataType="wstr" length="15" name="CustomerCountry">
+                      <properties>
+                        <property name="CopyFromReferenceColumn" dataType="System.String">Country</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+                <output refId="Package\Load Orders With Enrichment\Lookup Customers.Outputs[Lookup No Match Output]" name="Lookup No Match Output" />
+              </outputs>
+            </component>
+            <component
+              refId="Package\Load Orders With Enrichment\Lookup Employees"
+              componentClassID="Microsoft.Lookup"
+              description="Lookup employee details"
+              name="Lookup Employees"
+              usesDispositions="true"
+              version="6">
+              <properties>
+                <property name="CacheType" dataType="System.Int32">0</property>
+                <property name="NoMatchBehavior" dataType="System.Int32">0</property>
+                <property name="SqlCommand" dataType="System.String">SELECT EmployeeID, FirstName + ' ' + LastName as EmployeeName FROM Employees</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Orders With Enrichment\Lookup Employees.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindDB]"
+                  name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input refId="Package\Load Orders With Enrichment\Lookup Employees.Inputs[Lookup Input]" name="Lookup Input">
+                  <inputColumns>
+                    <inputColumn refId="Package\Load Orders With Enrichment\Lookup Employees.Inputs[Lookup Input].Columns[EmployeeID]"
+                      cachedDataType="i4" cachedName="EmployeeID"
+                      lineageId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output].Columns[EmployeeID]">
+                      <properties>
+                        <property name="JoinToReferenceColumn" dataType="System.String">EmployeeID</property>
+                      </properties>
+                    </inputColumn>
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output refId="Package\Load Orders With Enrichment\Lookup Employees.Outputs[Lookup Match Output]" name="Lookup Match Output">
+                  <outputColumns>
+                    <outputColumn refId="Package\Load Orders With Enrichment\Lookup Employees.Outputs[Lookup Match Output].Columns[EmployeeName]" dataType="wstr" length="50" name="EmployeeName">
+                      <properties>
+                        <property name="CopyFromReferenceColumn" dataType="System.String">EmployeeName</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\Load Orders With Enrichment\Lookup Shippers"
+              componentClassID="Microsoft.Lookup"
+              description="Lookup shipper details"
+              name="Lookup Shippers"
+              usesDispositions="true"
+              version="6">
+              <properties>
+                <property name="CacheType" dataType="System.Int32">0</property>
+                <property name="SqlCommand" dataType="System.String">SELECT ShipperID, CompanyName as ShipperName FROM Shippers</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Orders With Enrichment\Lookup Shippers.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindDB]"
+                  name="OleDbConnection" />
+              </connections>
+            </component>
+            <component
+              refId="Package\Load Orders With Enrichment\Calculate Derived Fields"
+              componentClassID="Microsoft.DerivedColumn"
+              description="Calculate date parts and shipping metrics"
+              name="Calculate Derived Fields"
+              usesDispositions="true">
+              <outputs>
+                <output refId="Package\Load Orders With Enrichment\Calculate Derived Fields.Outputs[Derived Column Output]" name="Derived Column Output">
+                  <outputColumns>
+                    <outputColumn refId="Package\Load Orders With Enrichment\Calculate Derived Fields.Outputs[Derived Column Output].Columns[OrderYear]" dataType="i4" name="OrderYear">
+                      <properties>
+                        <property name="Expression" dataType="System.String">YEAR(OrderDate)</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Load Orders With Enrichment\Calculate Derived Fields.Outputs[Derived Column Output].Columns[OrderMonth]" dataType="i4" name="OrderMonth">
+                      <properties>
+                        <property name="Expression" dataType="System.String">MONTH(OrderDate)</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Load Orders With Enrichment\Calculate Derived Fields.Outputs[Derived Column Output].Columns[DaysToShip]" dataType="i4" name="DaysToShip">
+                      <properties>
+                        <property name="Expression" dataType="System.String">ISNULL(ShippedDate) ? -1 : DATEDIFF("dd", OrderDate, ShippedDate)</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Load Orders With Enrichment\Calculate Derived Fields.Outputs[Derived Column Output].Columns[IsLateShipment]" dataType="bool" name="IsLateShipment">
+                      <properties>
+                        <property name="Expression" dataType="System.String">ISNULL(ShippedDate) ? FALSE : (ShippedDate > RequiredDate ? TRUE : FALSE)</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Load Orders With Enrichment\Calculate Derived Fields.Outputs[Derived Column Output].Columns[LoadDate]" dataType="dbTimeStamp" name="LoadDate">
+                      <properties>
+                        <property name="Expression" dataType="System.String">GETDATE()</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\Load Orders With Enrichment\OLE DB Destination"
+              componentClassID="Microsoft.OLEDBDestination"
+              description="Load enriched orders"
+              name="OLE DB Destination"
+              usesDispositions="true"
+              version="4">
+              <properties>
+                <property name="OpenRowset" dataType="System.String">[dbo].[Orders_Enriched]</property>
+                <property name="AccessMode" dataType="System.Int32">3</property>
+                <property name="FastLoadOptions" dataType="System.String">TABLOCK,CHECK_CONSTRAINTS</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Orders With Enrichment\OLE DB Destination.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindDB]"
+                  name="OleDbConnection" />
+              </connections>
+            </component>
+          </components>
+          <paths>
+            <path refId="Package\Load Orders With Enrichment.Paths[Source to Customer Lookup]"
+              startId="Package\Load Orders With Enrichment\Orders Source.Outputs[OLE DB Source Output]"
+              endId="Package\Load Orders With Enrichment\Lookup Customers.Inputs[Lookup Input]"
+              name="Source to Customer Lookup" />
+            <path refId="Package\Load Orders With Enrichment.Paths[Customer Lookup to Employee Lookup]"
+              startId="Package\Load Orders With Enrichment\Lookup Customers.Outputs[Lookup Match Output]"
+              endId="Package\Load Orders With Enrichment\Lookup Employees.Inputs[Lookup Input]"
+              name="Customer Lookup to Employee Lookup" />
+            <path refId="Package\Load Orders With Enrichment.Paths[Employee Lookup to Shipper Lookup]"
+              startId="Package\Load Orders With Enrichment\Lookup Employees.Outputs[Lookup Match Output]"
+              endId="Package\Load Orders With Enrichment\Lookup Shippers.Inputs[Lookup Input]"
+              name="Employee Lookup to Shipper Lookup" />
+            <path refId="Package\Load Orders With Enrichment.Paths[Shipper Lookup to Derived]"
+              startId="Package\Load Orders With Enrichment\Lookup Shippers.Outputs[Lookup Match Output]"
+              endId="Package\Load Orders With Enrichment\Calculate Derived Fields.Inputs[Derived Column Input]"
+              name="Shipper Lookup to Derived" />
+            <path refId="Package\Load Orders With Enrichment.Paths[Derived to Destination]"
+              startId="Package\Load Orders With Enrichment\Calculate Derived Fields.Outputs[Derived Column Output]"
+              endId="Package\Load Orders With Enrichment\OLE DB Destination.Inputs[OLE DB Destination Input]"
+              name="Derived to Destination" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint
+      DTS:refId="Package.PrecedenceConstraints[Create to Load]"
+      DTS:CreationName=""
+      DTS:DTSID="{PC333333-3333-3333-3333-333333333333}"
+      DTS:From="Package\Create Staging Tables"
+      DTS:LogicalAnd="True"
+      DTS:ObjectName="Create to Load"
+      DTS:To="Package\Load Orders With Enrichment" />
+  </DTS:PrecedenceConstraints>
+</DTS:Executable>

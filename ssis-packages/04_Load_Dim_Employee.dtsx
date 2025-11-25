@@ -1,0 +1,198 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:DTSID="{PKG04-DIM-EMP-0001}"
+  DTS:ObjectName="04_Load_Dim_Employee"
+  DTS:PackageType="5"
+  DTS:Description="Load Employee dimension from Northwind Employees table with derived hierarchy attributes">
+  <DTS:Property DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager DTS:refId="Package.ConnectionManagers[NorthwindDB]" DTS:CreationName="OLEDB" DTS:DTSID="{CONN-NW-0004}" DTS:ObjectName="NorthwindDB">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables>
+    <DTS:Variable DTS:DTSID="{VAR-EMP-001}" DTS:Namespace="User" DTS:ObjectName="RowsInserted"><DTS:VariableValue DTS:DataType="3">0</DTS:VariableValue></DTS:Variable>
+    <DTS:Variable DTS:DTSID="{VAR-EMP-002}" DTS:Namespace="User" DTS:ObjectName="SeniorTenureYears"><DTS:VariableValue DTS:DataType="3">5</DTS:VariableValue></DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable DTS:refId="Package\Log Start" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-EMP1}" DTS:ObjectName="Log Start">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-NW-0004}" SQLTask:SqlStatementSource="INSERT INTO dbo.ETL_Log (PackageName, TaskName, StartTime, Status) VALUES ('04_Load_Dim_Employee', 'Full Load', GETDATE(), 'Running')" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Truncate Dim_Employee" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-TRUNC-EMP}" DTS:ObjectName="Truncate Dim_Employee">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-NW-0004}" SQLTask:SqlStatementSource="TRUNCATE TABLE dbo.Dim_Employee" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Load Employee Dimension" DTS:CreationName="Microsoft.Pipeline" DTS:DTSID="{DFT-EMP-0001}" DTS:ObjectName="Load Employee Dimension">
+      <DTS:ObjectData>
+        <pipeline version="1">
+          <components>
+            <component refId="Package\Load Employee Dimension\Extract Employees" componentClassID="Microsoft.OLEDBSource" name="Extract Employees" version="7">
+              <properties>
+                <property name="SqlCommand" dataType="System.String">-- Extract employees with manager hierarchy
+SELECT
+    e.EmployeeID,
+    e.LastName,
+    e.FirstName,
+    e.LastName + ', ' + e.FirstName AS FullName,
+    e.Title,
+    e.TitleOfCourtesy,
+    e.BirthDate,
+    e.HireDate,
+    e.Address,
+    e.City,
+    e.Region,
+    e.PostalCode,
+    e.Country,
+    e.HomePhone,
+    e.Extension,
+    e.ReportsTo,
+    m.LastName + ', ' + m.FirstName AS ManagerName,
+    m.Title AS ManagerTitle,
+    -- Calculate hierarchy level (1 = top level, no manager)
+    CASE
+        WHEN e.ReportsTo IS NULL THEN 1
+        WHEN m.ReportsTo IS NULL THEN 2
+        ELSE 3
+    END AS HierarchyLevel,
+    -- Calculate tenure in years
+    DATEDIFF(YEAR, e.HireDate, GETDATE()) AS TenureYears,
+    -- Calculate age
+    DATEDIFF(YEAR, e.BirthDate, GETDATE()) AS Age,
+    -- Territory count (for performance context)
+    (SELECT COUNT(*) FROM EmployeeTerritories et WHERE et.EmployeeID = e.EmployeeID) AS TerritoryCount
+FROM Employees e
+LEFT JOIN Employees m ON e.ReportsTo = m.EmployeeID</property>
+                <property name="AccessMode" dataType="System.Int32">2</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Employee Dimension\Extract Employees.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindDB]" name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output refId="Package\Load Employee Dimension\Extract Employees.Outputs[OLE DB Source Output]" name="OLE DB Source Output">
+                  <outputColumns>
+                    <outputColumn dataType="i4" name="EmployeeID" />
+                    <outputColumn dataType="wstr" length="20" name="LastName" />
+                    <outputColumn dataType="wstr" length="10" name="FirstName" />
+                    <outputColumn dataType="wstr" length="31" name="FullName" />
+                    <outputColumn dataType="wstr" length="30" name="Title" />
+                    <outputColumn dataType="wstr" length="25" name="TitleOfCourtesy" />
+                    <outputColumn dataType="dbTimeStamp" name="BirthDate" />
+                    <outputColumn dataType="dbTimeStamp" name="HireDate" />
+                    <outputColumn dataType="wstr" length="60" name="Address" />
+                    <outputColumn dataType="wstr" length="15" name="City" />
+                    <outputColumn dataType="wstr" length="15" name="Region" />
+                    <outputColumn dataType="wstr" length="10" name="PostalCode" />
+                    <outputColumn dataType="wstr" length="15" name="Country" />
+                    <outputColumn dataType="wstr" length="24" name="HomePhone" />
+                    <outputColumn dataType="wstr" length="4" name="Extension" />
+                    <outputColumn dataType="i4" name="ReportsTo" />
+                    <outputColumn dataType="wstr" length="31" name="ManagerName" />
+                    <outputColumn dataType="wstr" length="30" name="ManagerTitle" />
+                    <outputColumn dataType="i4" name="HierarchyLevel" />
+                    <outputColumn dataType="i4" name="TenureYears" />
+                    <outputColumn dataType="i4" name="Age" />
+                    <outputColumn dataType="i4" name="TerritoryCount" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Employee Dimension\Derive Employee Attributes" componentClassID="Microsoft.DerivedColumn" name="Derive Employee Attributes">
+              <outputs>
+                <output refId="Package\Load Employee Dimension\Derive Employee Attributes.Outputs[Derived Column Output]" name="Derived Column Output">
+                  <outputColumns>
+                    <outputColumn dataType="wstr" length="20" name="TenureCategory">
+                      <properties>
+                        <property name="Expression" dataType="System.String">TenureYears &lt; 2 ? "New Hire" : (TenureYears &lt; @[User::SeniorTenureYears] ? "Established" : "Senior")</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="wstr" length="20" name="AgeGroup">
+                      <properties>
+                        <property name="Expression" dataType="System.String">Age &lt; 30 ? "Under 30" : (Age &lt; 40 ? "30-39" : (Age &lt; 50 ? "40-49" : "50+"))</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="wstr" length="50" name="EmployeeRegion">
+                      <properties>
+                        <property name="Expression" dataType="System.String">Country == "USA" ? "North America" : (Country == "UK" ? "Europe" : "Other")</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="bool" name="IsManager">
+                      <properties>
+                        <property name="Expression" dataType="System.String">HierarchyLevel == 1 || HierarchyLevel == 2 ? TRUE : FALSE</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="bool" name="HasDirectReports">
+                      <properties>
+                        <property name="Expression" dataType="System.String">HierarchyLevel &lt; 3 ? TRUE : FALSE</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="dbTimeStamp" name="LoadDate">
+                      <properties>
+                        <property name="Expression" dataType="System.String">GETDATE()</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Employee Dimension\Row Count" componentClassID="Microsoft.RowCount" name="Row Count">
+              <properties>
+                <property name="VariableName" dataType="System.String">User::RowsInserted</property>
+              </properties>
+            </component>
+            <component refId="Package\Load Employee Dimension\Insert Employees" componentClassID="Microsoft.OLEDBDestination" name="Insert Employees" version="4">
+              <properties>
+                <property name="OpenRowset" dataType="System.String">[dbo].[Dim_Employee]</property>
+                <property name="AccessMode" dataType="System.Int32">3</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Employee Dimension\Insert Employees.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindDB]" name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input]" name="OLE DB Destination Input">
+                  <inputColumns>
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[EmployeeID]" cachedName="EmployeeID" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[EmployeeID]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[LastName]" cachedName="LastName" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[LastName]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[FirstName]" cachedName="FirstName" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[FirstName]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[FullName]" cachedName="FullName" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[FullName]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[Title]" cachedName="Title" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[Title]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[HireDate]" cachedName="HireDate" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[HireDate]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[BirthDate]" cachedName="BirthDate" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[BirthDate]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[City]" cachedName="City" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[City]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[Region]" cachedName="Region" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[Region]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[Country]" cachedName="Country" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[Country]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[ReportsTo]" cachedName="ReportsTo" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[ReportsTo]" />
+                    <inputColumn refId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].Columns[ManagerName]" cachedName="ManagerName" externalMetadataColumnId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input].ExternalColumns[ManagerName]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+            </component>
+          </components>
+          <paths>
+            <path startId="Package\Load Employee Dimension\Extract Employees.Outputs[OLE DB Source Output]" endId="Package\Load Employee Dimension\Derive Employee Attributes.Inputs[Derived Column Input]" name="Extract to Derive" />
+            <path startId="Package\Load Employee Dimension\Derive Employee Attributes.Outputs[Derived Column Output]" endId="Package\Load Employee Dimension\Row Count.Inputs[Row Count Input 1]" name="Derive to RowCount" />
+            <path startId="Package\Load Employee Dimension\Row Count.Outputs[Row Count Output 1]" endId="Package\Load Employee Dimension\Insert Employees.Inputs[OLE DB Destination Input]" name="RowCount to Insert" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Log Success" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-EMP2}" DTS:ObjectName="Log Success">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-NW-0004}" SQLTask:SqlStatementSource="UPDATE dbo.ETL_Log SET EndTime = GETDATE(), Status = 'Succeeded', RowsInserted = ? WHERE PackageName = '04_Load_Dim_Employee' AND Status = 'Running'" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ParameterBinding SQLTask:ParameterName="0" SQLTask:DtsVariableName="User::RowsInserted" SQLTask:ParameterDirection="Input" SQLTask:DataType="3" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint DTS:From="Package\Log Start" DTS:To="Package\Truncate Dim_Employee" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Truncate Dim_Employee" DTS:To="Package\Load Employee Dimension" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Load Employee Dimension" DTS:To="Package\Log Success" />
+  </DTS:PrecedenceConstraints>
+</DTS:Executable>

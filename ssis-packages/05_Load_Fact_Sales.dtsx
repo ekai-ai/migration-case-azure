@@ -1,0 +1,300 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:DTSID="{PKG05-FACT-SALES-0001}"
+  DTS:ObjectName="05_Load_Fact_Sales"
+  DTS:PackageType="5">
+  <DTS:Property DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager DTS:refId="Package.ConnectionManagers[NorthwindSource]" DTS:CreationName="OLEDB" DTS:DTSID="{CONN-SRC-0005}" DTS:ObjectName="NorthwindSource">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+    <DTS:ConnectionManager DTS:refId="Package.ConnectionManagers[NorthwindDW]" DTS:CreationName="OLEDB" DTS:DTSID="{CONN-DW-0005}" DTS:ObjectName="NorthwindDW">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables>
+    <DTS:Variable DTS:DTSID="{VAR-FS-001}" DTS:Namespace="User" DTS:ObjectName="RowsInserted"><DTS:VariableValue DTS:DataType="3">0</DTS:VariableValue></DTS:Variable>
+    <DTS:Variable DTS:DTSID="{VAR-FS-002}" DTS:Namespace="User" DTS:ObjectName="IncrementalLoad"><DTS:VariableValue DTS:DataType="11">false</DTS:VariableValue></DTS:Variable>
+    <DTS:Variable DTS:DTSID="{VAR-FS-003}" DTS:Namespace="User" DTS:ObjectName="LastLoadDate"><DTS:VariableValue DTS:DataType="7">1996-01-01T00:00:00</DTS:VariableValue></DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable DTS:refId="Package\Log Start" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-FS1}" DTS:ObjectName="Log Start">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0005}" SQLTask:SqlStatementSource="INSERT INTO dbo.ETL_Log (PackageName, TaskName, StartTime, Status) VALUES ('05_Load_Fact_Sales', 'Load Sales Fact', GETDATE(), 'Running')" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Get Last Load Date" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:Description="Get watermark for incremental load" DTS:DTSID="{EXEC-WM-0001}" DTS:ObjectName="Get Last Load Date">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0005}" SQLTask:ResultType="ResultSetType_SingleRow" SQLTask:SqlStatementSource="SELECT ISNULL(MAX(OrderDate), '1996-01-01') AS LastLoadDate FROM dbo.Fact_Sales" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ResultBinding SQLTask:ResultName="LastLoadDate" SQLTask:DtsVariableName="User::LastLoadDate" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Truncate For Full Load" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-TRUNC-FS}" DTS:ObjectName="Truncate For Full Load">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0005}" SQLTask:SqlStatementSource="IF ? = 0 TRUNCATE TABLE dbo.Fact_Sales" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ParameterBinding SQLTask:ParameterName="0" SQLTask:DtsVariableName="User::IncrementalLoad" SQLTask:ParameterDirection="Input" SQLTask:DataType="11" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Load Fact Sales" DTS:CreationName="Microsoft.Pipeline" DTS:Description="Main fact table load with dimension lookups" DTS:DTSID="{DFT-FS-0001}" DTS:ObjectName="Load Fact Sales">
+      <DTS:ObjectData>
+        <pipeline version="1">
+          <components>
+            <component refId="Package\Load Fact Sales\Extract Order Details" componentClassID="Microsoft.OLEDBSource" name="Extract Order Details" version="7">
+              <properties>
+                <property name="SqlCommand" dataType="System.String">SELECT
+    o.OrderID,
+    od.ProductID,
+    o.CustomerID,
+    o.EmployeeID,
+    o.OrderDate,
+    o.RequiredDate,
+    o.ShippedDate,
+    od.UnitPrice,
+    od.Quantity,
+    od.Discount,
+    o.Freight,
+    -- Calculate line number within order
+    ROW_NUMBER() OVER (PARTITION BY o.OrderID ORDER BY od.ProductID) AS OrderLineNumber,
+    -- Pre-calculate measures
+    od.UnitPrice * od.Quantity AS GrossAmount,
+    od.UnitPrice * od.Quantity * od.Discount AS DiscountAmount,
+    od.UnitPrice * od.Quantity * (1 - od.Discount) AS NetAmount,
+    -- Calculate freight allocation per line
+    o.Freight / COUNT(*) OVER (PARTITION BY o.OrderID) AS FreightAllocation,
+    -- Calculate shipping metrics
+    DATEDIFF(DAY, o.OrderDate, o.ShippedDate) AS DaysToShip,
+    DATEDIFF(DAY, o.RequiredDate, o.ShippedDate) AS DaysLate,
+    CASE WHEN o.ShippedDate > o.RequiredDate THEN 1 ELSE 0 END AS IsLateShipment
+FROM Orders o
+INNER JOIN [Order Details] od ON o.OrderID = od.OrderID
+WHERE o.OrderDate > ?
+ORDER BY o.OrderID, od.ProductID</property>
+                <property name="AccessMode" dataType="System.Int32">2</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Fact Sales\Extract Order Details.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindSource]" name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output refId="Package\Load Fact Sales\Extract Order Details.Outputs[OLE DB Source Output]" name="OLE DB Source Output">
+                  <outputColumns>
+                    <outputColumn dataType="i4" name="OrderID" />
+                    <outputColumn dataType="i4" name="ProductID" />
+                    <outputColumn dataType="wstr" length="5" name="CustomerID" />
+                    <outputColumn dataType="i4" name="EmployeeID" />
+                    <outputColumn dataType="dbTimeStamp" name="OrderDate" />
+                    <outputColumn dataType="dbTimeStamp" name="RequiredDate" />
+                    <outputColumn dataType="dbTimeStamp" name="ShippedDate" />
+                    <outputColumn dataType="cy" name="UnitPrice" />
+                    <outputColumn dataType="i2" name="Quantity" />
+                    <outputColumn dataType="r4" name="Discount" />
+                    <outputColumn dataType="cy" name="Freight" />
+                    <outputColumn dataType="i8" name="OrderLineNumber" />
+                    <outputColumn dataType="cy" name="GrossAmount" />
+                    <outputColumn dataType="cy" name="DiscountAmount" />
+                    <outputColumn dataType="cy" name="NetAmount" />
+                    <outputColumn dataType="cy" name="FreightAllocation" />
+                    <outputColumn dataType="i4" name="DaysToShip" />
+                    <outputColumn dataType="i4" name="DaysLate" />
+                    <outputColumn dataType="i4" name="IsLateShipment" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Fact Sales\Lookup DateKey" componentClassID="Microsoft.Lookup" name="Lookup DateKey" description="Lookup date dimension key" version="6">
+              <properties>
+                <property name="CacheType" dataType="System.Int32">0</property>
+                <property name="NoMatchBehavior" dataType="System.Int32">1</property>
+                <property name="SqlCommand" dataType="System.String">SELECT DateKey, FullDate FROM dbo.Dim_Date</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Fact Sales\Lookup DateKey.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input refId="Package\Load Fact Sales\Lookup DateKey.Inputs[Lookup Input]" name="Lookup Input">
+                  <inputColumns>
+                    <inputColumn cachedDataType="dbTimeStamp" cachedName="OrderDate" lineageId="OrderDate">
+                      <properties>
+                        <property name="JoinToReferenceColumn" dataType="System.String">FullDate</property>
+                      </properties>
+                    </inputColumn>
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output refId="Package\Load Fact Sales\Lookup DateKey.Outputs[Lookup Match Output]" name="Lookup Match Output">
+                  <outputColumns>
+                    <outputColumn dataType="i4" name="DateKey">
+                      <properties>
+                        <property name="CopyFromReferenceColumn" dataType="System.String">DateKey</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+                <output refId="Package\Load Fact Sales\Lookup DateKey.Outputs[Lookup No Match Output]" name="Lookup No Match Output" />
+              </outputs>
+            </component>
+            <component refId="Package\Load Fact Sales\Lookup CustomerKey" componentClassID="Microsoft.Lookup" name="Lookup CustomerKey" description="Lookup customer dimension key" version="6">
+              <properties>
+                <property name="CacheType" dataType="System.Int32">0</property>
+                <property name="NoMatchBehavior" dataType="System.Int32">1</property>
+                <property name="SqlCommand" dataType="System.String">SELECT CustomerKey, CustomerID FROM dbo.Dim_Customer WHERE IsCurrent = 1</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Fact Sales\Lookup CustomerKey.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input refId="Package\Load Fact Sales\Lookup CustomerKey.Inputs[Lookup Input]" name="Lookup Input">
+                  <inputColumns>
+                    <inputColumn cachedDataType="wstr" cachedLength="5" cachedName="CustomerID" lineageId="CustomerID">
+                      <properties>
+                        <property name="JoinToReferenceColumn" dataType="System.String">CustomerID</property>
+                      </properties>
+                    </inputColumn>
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output refId="Package\Load Fact Sales\Lookup CustomerKey.Outputs[Lookup Match Output]" name="Lookup Match Output">
+                  <outputColumns>
+                    <outputColumn dataType="i4" name="CustomerKey">
+                      <properties>
+                        <property name="CopyFromReferenceColumn" dataType="System.String">CustomerKey</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Fact Sales\Lookup ProductKey" componentClassID="Microsoft.Lookup" name="Lookup ProductKey" description="Lookup product dimension key" version="6">
+              <properties>
+                <property name="CacheType" dataType="System.Int32">0</property>
+                <property name="NoMatchBehavior" dataType="System.Int32">1</property>
+                <property name="SqlCommand" dataType="System.String">SELECT ProductKey, ProductID FROM dbo.Dim_Product WHERE IsCurrent = 1</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Fact Sales\Lookup ProductKey.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
+              </connections>
+              <inputs>
+                <input refId="Package\Load Fact Sales\Lookup ProductKey.Inputs[Lookup Input]" name="Lookup Input">
+                  <inputColumns>
+                    <inputColumn cachedDataType="i4" cachedName="ProductID" lineageId="ProductID">
+                      <properties>
+                        <property name="JoinToReferenceColumn" dataType="System.String">ProductID</property>
+                      </properties>
+                    </inputColumn>
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output refId="Package\Load Fact Sales\Lookup ProductKey.Outputs[Lookup Match Output]" name="Lookup Match Output">
+                  <outputColumns>
+                    <outputColumn dataType="i4" name="ProductKey">
+                      <properties>
+                        <property name="CopyFromReferenceColumn" dataType="System.String">ProductKey</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Fact Sales\Lookup EmployeeKey" componentClassID="Microsoft.Lookup" name="Lookup EmployeeKey" version="6">
+              <properties>
+                <property name="CacheType" dataType="System.Int32">0</property>
+                <property name="NoMatchBehavior" dataType="System.Int32">1</property>
+                <property name="SqlCommand" dataType="System.String">SELECT EmployeeKey, EmployeeID FROM dbo.Dim_Employee WHERE IsCurrent = 1</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Fact Sales\Lookup EmployeeKey.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
+              </connections>
+            </component>
+            <component refId="Package\Load Fact Sales\Add LoadDate" componentClassID="Microsoft.DerivedColumn" name="Add LoadDate">
+              <outputs>
+                <output refId="Package\Load Fact Sales\Add LoadDate.Outputs[Derived Column Output]" name="Derived Column Output">
+                  <outputColumns>
+                    <outputColumn dataType="dbTimeStamp" name="LoadDate">
+                      <properties>
+                        <property name="Expression" dataType="System.String">GETDATE()</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Fact Sales\Data Conversion" componentClassID="Microsoft.DataConvert" name="Data Conversion" description="Convert data types for destination">
+              <outputs>
+                <output refId="Package\Load Fact Sales\Data Conversion.Outputs[Data Conversion Output]" name="Data Conversion Output">
+                  <outputColumns>
+                    <outputColumn dataType="i2" name="QuantityConverted">
+                      <properties>
+                        <property name="SourceInputColumnLineageID" dataType="System.Int32">Quantity</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Fact Sales\Row Count" componentClassID="Microsoft.RowCount" name="Row Count">
+              <properties>
+                <property name="VariableName" dataType="System.String">User::RowsInserted</property>
+              </properties>
+            </component>
+            <component refId="Package\Load Fact Sales\Insert Fact Sales" componentClassID="Microsoft.OLEDBDestination" name="Insert Fact Sales" version="4">
+              <properties>
+                <property name="OpenRowset" dataType="System.String">[dbo].[Fact_Sales]</property>
+                <property name="AccessMode" dataType="System.Int32">3</property>
+                <property name="FastLoadOptions" dataType="System.String">TABLOCK,CHECK_CONSTRAINTS</property>
+                <property name="FastLoadMaxInsertCommitSize" dataType="System.Int32">10000</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Fact Sales\Insert Fact Sales.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
+              </connections>
+            </component>
+          </components>
+          <paths>
+            <path startId="Package\Load Fact Sales\Extract Order Details.Outputs[OLE DB Source Output]" endId="Package\Load Fact Sales\Lookup DateKey.Inputs[Lookup Input]" name="Extract to Date Lookup" />
+            <path startId="Package\Load Fact Sales\Lookup DateKey.Outputs[Lookup Match Output]" endId="Package\Load Fact Sales\Lookup CustomerKey.Inputs[Lookup Input]" name="Date to Customer Lookup" />
+            <path startId="Package\Load Fact Sales\Lookup CustomerKey.Outputs[Lookup Match Output]" endId="Package\Load Fact Sales\Lookup ProductKey.Inputs[Lookup Input]" name="Customer to Product Lookup" />
+            <path startId="Package\Load Fact Sales\Lookup ProductKey.Outputs[Lookup Match Output]" endId="Package\Load Fact Sales\Lookup EmployeeKey.Inputs[Lookup Input]" name="Product to Employee Lookup" />
+            <path startId="Package\Load Fact Sales\Lookup EmployeeKey.Outputs[Lookup Match Output]" endId="Package\Load Fact Sales\Add LoadDate.Inputs[Derived Column Input]" name="Employee to Derived" />
+            <path startId="Package\Load Fact Sales\Add LoadDate.Outputs[Derived Column Output]" endId="Package\Load Fact Sales\Data Conversion.Inputs[Data Conversion Input]" name="Derived to Convert" />
+            <path startId="Package\Load Fact Sales\Data Conversion.Outputs[Data Conversion Output]" endId="Package\Load Fact Sales\Row Count.Inputs[Row Count Input 1]" name="Convert to RowCount" />
+            <path startId="Package\Load Fact Sales\Row Count.Outputs[Row Count Output 1]" endId="Package\Load Fact Sales\Insert Fact Sales.Inputs[OLE DB Destination Input]" name="RowCount to Insert" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Update Watermark" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-UPD-WM}" DTS:ObjectName="Update Watermark">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0005}" SQLTask:SqlStatementSource="
+MERGE dbo.ETL_WaterMark AS target
+USING (SELECT 'Fact_Sales' AS TableName, 'OrderDate' AS ColumnName, CONVERT(VARCHAR(100), MAX(OrderDate), 121) AS LastValue, GETDATE() AS LastLoadDate FROM dbo.Fact_Sales) AS source
+ON target.TableName = source.TableName AND target.ColumnName = source.ColumnName
+WHEN MATCHED THEN UPDATE SET LastValue = source.LastValue, LastLoadDate = source.LastLoadDate
+WHEN NOT MATCHED THEN INSERT (TableName, ColumnName, LastValue, LastLoadDate) VALUES (source.TableName, source.ColumnName, source.LastValue, source.LastLoadDate);
+" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Log Success" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-FS2}" DTS:ObjectName="Log Success">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0005}" SQLTask:SqlStatementSource="UPDATE dbo.ETL_Log SET EndTime = GETDATE(), Status = 'Succeeded', RowsInserted = ? WHERE PackageName = '05_Load_Fact_Sales' AND Status = 'Running'" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ParameterBinding SQLTask:ParameterName="0" SQLTask:DtsVariableName="User::RowsInserted" SQLTask:ParameterDirection="Input" SQLTask:DataType="3" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint DTS:From="Package\Log Start" DTS:To="Package\Get Last Load Date" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Get Last Load Date" DTS:To="Package\Truncate For Full Load" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Truncate For Full Load" DTS:To="Package\Load Fact Sales" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Load Fact Sales" DTS:To="Package\Update Watermark" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Update Watermark" DTS:To="Package\Log Success" />
+  </DTS:PrecedenceConstraints>
+</DTS:Executable>

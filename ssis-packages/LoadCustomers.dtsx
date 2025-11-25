@@ -1,0 +1,264 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationDate="11/25/2025 12:00:00 PM"
+  DTS:CreationName="Microsoft.Package"
+  DTS:CreatorComputerName="ekai-magent-vm"
+  DTS:CreatorName="ekaiadmin"
+  DTS:DTSID="{A1B2C3D4-E5F6-7890-ABCD-EF1234567890}"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:LastModifiedProductVersion="16.0.5556.0"
+  DTS:LocaleID="1033"
+  DTS:ObjectName="LoadCustomers"
+  DTS:PackageType="5"
+  DTS:VersionBuild="1"
+  DTS:VersionGUID="{11111111-2222-3333-4444-555555555555}">
+  <DTS:Property DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[NorthwindSource]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE}"
+      DTS:ObjectName="NorthwindSource">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;Auto Translate=False;">
+        </DTS:ConnectionManager>
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[NorthwindStaging]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF}"
+      DTS:ObjectName="NorthwindStaging">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;Auto Translate=False;">
+        </DTS:ConnectionManager>
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{VAR11111-1111-1111-1111-111111111111}"
+      DTS:IncludeInDebugDump="2345"
+      DTS:Namespace="User"
+      DTS:ObjectName="LoadDate">
+      <DTS:VariableValue DTS:DataType="7">2025-11-25T00:00:00</DTS:VariableValue>
+    </DTS:Variable>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{VAR22222-2222-2222-2222-222222222222}"
+      DTS:IncludeInDebugDump="2345"
+      DTS:Namespace="User"
+      DTS:ObjectName="RowCount">
+      <DTS:VariableValue DTS:DataType="3">0</DTS:VariableValue>
+    </DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\Truncate Staging Table"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Truncate staging table before load"
+      DTS:DTSID="{EXEC1111-1111-1111-1111-111111111111}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="Truncate Staging Table"
+      DTS:TaskContact="Execute SQL Task; Microsoft Corporation; SQL Server 2022; (C) Microsoft Corporation; All Rights Reserved;">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF}"
+          SQLTask:SqlStatementSource="TRUNCATE TABLE dbo.Customers_Staging"
+          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\Load Customers Data Flow"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:Description="Data Flow Task to load customers"
+      DTS:DTSID="{DFT11111-1111-1111-1111-111111111111}"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="Load Customers Data Flow"
+      DTS:TaskContact="Performs high-performance data extraction, transformation and loading;Microsoft Corporation; Microsoft SQL Server; (C) Microsoft Corporation; All Rights Reserved;">
+      <DTS:ObjectData>
+        <pipeline version="1">
+          <components>
+            <component
+              refId="Package\Load Customers Data Flow\OLE DB Source"
+              componentClassID="Microsoft.OLEDBSource"
+              contactInfo="OLE DB Source;Microsoft Corporation; Microsoft SQL Server; (C) Microsoft Corporation; All Rights Reserved;"
+              description="OLE DB Source"
+              name="OLE DB Source"
+              usesDispositions="true"
+              version="7">
+              <properties>
+                <property name="CommandTimeout" dataType="System.Int32">0</property>
+                <property name="OpenRowset" dataType="System.String"></property>
+                <property name="SqlCommand" dataType="System.String">SELECT
+    CustomerID,
+    CompanyName,
+    ContactName,
+    ContactTitle,
+    Address,
+    City,
+    Region,
+    PostalCode,
+    Country,
+    Phone,
+    Fax,
+    GETDATE() as LoadDate
+FROM dbo.Customers
+WHERE Country IS NOT NULL</property>
+                <property name="AccessMode" dataType="System.Int32">2</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Customers Data Flow\OLE DB Source.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindSource]"
+                  connectionManagerRefId="Package.ConnectionManagers[NorthwindSource]"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output]" name="OLE DB Source Output">
+                  <outputColumns>
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[CustomerID]" dataType="wstr" length="5" name="CustomerID" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[CompanyName]" dataType="wstr" length="40" name="CompanyName" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[ContactName]" dataType="wstr" length="30" name="ContactName" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[ContactTitle]" dataType="wstr" length="30" name="ContactTitle" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[Address]" dataType="wstr" length="60" name="Address" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[City]" dataType="wstr" length="15" name="City" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[Region]" dataType="wstr" length="15" name="Region" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[PostalCode]" dataType="wstr" length="10" name="PostalCode" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[Country]" dataType="wstr" length="15" name="Country" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[Phone]" dataType="wstr" length="24" name="Phone" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[Fax]" dataType="wstr" length="24" name="Fax" />
+                    <outputColumn refId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[LoadDate]" dataType="dbTimeStamp" name="LoadDate" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\Load Customers Data Flow\Derived Column"
+              componentClassID="Microsoft.DerivedColumn"
+              contactInfo="Derived Column;Microsoft Corporation; Microsoft SQL Server; (C) Microsoft Corporation; All Rights Reserved;"
+              description="Creates new column values by applying expressions to transformation input columns."
+              name="Derived Column"
+              usesDispositions="true">
+              <inputs>
+                <input refId="Package\Load Customers Data Flow\Derived Column.Inputs[Derived Column Input]" name="Derived Column Input">
+                  <inputColumns>
+                    <inputColumn refId="Package\Load Customers Data Flow\Derived Column.Inputs[Derived Column Input].Columns[Region]" cachedDataType="wstr" cachedLength="15" cachedName="Region" lineageId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output].Columns[Region]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output refId="Package\Load Customers Data Flow\Derived Column.Outputs[Derived Column Output]" name="Derived Column Output">
+                  <outputColumns>
+                    <outputColumn refId="Package\Load Customers Data Flow\Derived Column.Outputs[Derived Column Output].Columns[RegionClean]" dataType="wstr" length="15" name="RegionClean">
+                      <properties>
+                        <property name="Expression" dataType="System.String">ISNULL(Region) ? "Unknown" : Region</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Load Customers Data Flow\Derived Column.Outputs[Derived Column Output].Columns[FullAddress]" dataType="wstr" length="150" name="FullAddress">
+                      <properties>
+                        <property name="Expression" dataType="System.String">Address + ", " + City + ", " + Country</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\Load Customers Data Flow\Row Count"
+              componentClassID="Microsoft.RowCount"
+              contactInfo="Row Count;Microsoft Corporation; Microsoft SQL Server; (C) Microsoft Corporation; All Rights Reserved;"
+              description="Counts rows as they pass through a data flow."
+              name="Row Count">
+              <properties>
+                <property name="VariableName" dataType="System.String">User::RowCount</property>
+              </properties>
+            </component>
+            <component
+              refId="Package\Load Customers Data Flow\OLE DB Destination"
+              componentClassID="Microsoft.OLEDBDestination"
+              contactInfo="OLE DB Destination;Microsoft Corporation; Microsoft SQL Server; (C) Microsoft Corporation; All Rights Reserved;"
+              description="OLE DB Destination"
+              name="OLE DB Destination"
+              usesDispositions="true"
+              version="4">
+              <properties>
+                <property name="CommandTimeout" dataType="System.Int32">0</property>
+                <property name="OpenRowset" dataType="System.String">[dbo].[Customers_Staging]</property>
+                <property name="AccessMode" dataType="System.Int32">3</property>
+                <property name="FastLoadOptions" dataType="System.String">TABLOCK,CHECK_CONSTRAINTS</property>
+                <property name="FastLoadKeepIdentity" dataType="System.Boolean">false</property>
+                <property name="FastLoadKeepNulls" dataType="System.Boolean">false</property>
+                <property name="FastLoadMaxInsertCommitSize" dataType="System.Int32">2147483647</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Customers Data Flow\OLE DB Destination.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindStaging]"
+                  connectionManagerRefId="Package.ConnectionManagers[NorthwindStaging]"
+                  name="OleDbConnection" />
+              </connections>
+            </component>
+          </components>
+          <paths>
+            <path refId="Package\Load Customers Data Flow.Paths[OLE DB Source to Derived Column]"
+              startId="Package\Load Customers Data Flow\OLE DB Source.Outputs[OLE DB Source Output]"
+              endId="Package\Load Customers Data Flow\Derived Column.Inputs[Derived Column Input]"
+              name="OLE DB Source to Derived Column" />
+            <path refId="Package\Load Customers Data Flow.Paths[Derived Column to Row Count]"
+              startId="Package\Load Customers Data Flow\Derived Column.Outputs[Derived Column Output]"
+              endId="Package\Load Customers Data Flow\Row Count.Inputs[Row Count Input 1]"
+              name="Derived Column to Row Count" />
+            <path refId="Package\Load Customers Data Flow.Paths[Row Count to Destination]"
+              startId="Package\Load Customers Data Flow\Row Count.Outputs[Row Count Output 1]"
+              endId="Package\Load Customers Data Flow\OLE DB Destination.Inputs[OLE DB Destination Input]"
+              name="Row Count to Destination" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\Log Row Count"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Log the number of rows loaded"
+      DTS:DTSID="{EXEC2222-2222-2222-2222-222222222222}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="Log Row Count">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{BBBBBBBB-CCCC-DDDD-EEEE-FFFFFFFFFFFF}"
+          SQLTask:SqlStatementSource="INSERT INTO dbo.ETL_Log (PackageName, RowsProcessed, ExecutionDate) VALUES ('LoadCustomers', ?, GETDATE())"
+          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ParameterBinding
+            SQLTask:ParameterName="0"
+            SQLTask:DtsVariableName="User::RowCount"
+            SQLTask:ParameterDirection="Input"
+            SQLTask:DataType="3" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint
+      DTS:refId="Package.PrecedenceConstraints[Truncate to DataFlow]"
+      DTS:CreationName=""
+      DTS:DTSID="{PC111111-1111-1111-1111-111111111111}"
+      DTS:From="Package\Truncate Staging Table"
+      DTS:LogicalAnd="True"
+      DTS:ObjectName="Truncate to DataFlow"
+      DTS:To="Package\Load Customers Data Flow" />
+    <DTS:PrecedenceConstraint
+      DTS:refId="Package.PrecedenceConstraints[DataFlow to Log]"
+      DTS:CreationName=""
+      DTS:DTSID="{PC222222-2222-2222-2222-222222222222}"
+      DTS:From="Package\Load Customers Data Flow"
+      DTS:LogicalAnd="True"
+      DTS:ObjectName="DataFlow to Log"
+      DTS:To="Package\Log Row Count" />
+  </DTS:PrecedenceConstraints>
+</DTS:Executable>

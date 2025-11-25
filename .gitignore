@@ -1,0 +1,27 @@
+# Credentials - NEVER commit
+sql-server.txt
+*.credentials
+*.secrets
+
+# VS/SSDT
+.vs/
+bin/
+obj/
+*.user
+*.suo
+
+# SSIS deployment files
+*.ispac
+*.dtproj.user
+*.database
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

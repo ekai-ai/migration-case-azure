@@ -1,0 +1,186 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationDate="11/25/2025 12:00:00 PM"
+  DTS:CreationName="Microsoft.Package"
+  DTS:CreatorComputerName="ekai-magent-vm"
+  DTS:CreatorName="ekaiadmin"
+  DTS:DTSID="{PKG01-DIM-DATE-0001-000000000001}"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:LastModifiedProductVersion="16.0.5556.0"
+  DTS:LocaleID="1033"
+  DTS:ObjectName="01_Load_Dim_Date"
+  DTS:PackageType="5"
+  DTS:VersionBuild="1"
+  DTS:VersionGUID="{DIM-DATE-VER1-0001-000000000001}">
+  <DTS:Property DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[NorthwindDW]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{CONN-DW01-0001-0001-000000000001}"
+      DTS:ObjectName="NorthwindDW">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;Auto Translate=False;">
+        </DTS:ConnectionManager>
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables>
+    <DTS:Variable DTS:CreationName="" DTS:DTSID="{VAR-0001}" DTS:Namespace="User" DTS:ObjectName="StartYear">
+      <DTS:VariableValue DTS:DataType="3">1996</DTS:VariableValue>
+    </DTS:Variable>
+    <DTS:Variable DTS:CreationName="" DTS:DTSID="{VAR-0002}" DTS:Namespace="User" DTS:ObjectName="EndYear">
+      <DTS:VariableValue DTS:DataType="3">1999</DTS:VariableValue>
+    </DTS:Variable>
+    <DTS:Variable DTS:CreationName="" DTS:DTSID="{VAR-0003}" DTS:Namespace="User" DTS:ObjectName="FiscalYearStartMonth">
+      <DTS:VariableValue DTS:DataType="3">7</DTS:VariableValue>
+    </DTS:Variable>
+    <DTS:Variable DTS:CreationName="" DTS:DTSID="{VAR-0004}" DTS:Namespace="User" DTS:ObjectName="RowsInserted">
+      <DTS:VariableValue DTS:DataType="3">0</DTS:VariableValue>
+    </DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\Log Start"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Log package start"
+      DTS:DTSID="{EXEC-LOG1-0001}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="Log Start">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CONN-DW01-0001-0001-000000000001}"
+          SQLTask:SqlStatementSource="INSERT INTO dbo.ETL_Log (PackageName, TaskName, StartTime, Status) VALUES ('01_Load_Dim_Date', 'Full Load', GETDATE(), 'Running')"
+          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\Truncate Dim_Date"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Clear dimension table for full reload"
+      DTS:DTSID="{EXEC-TRUNC-0001}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="Truncate Dim_Date">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CONN-DW01-0001-0001-000000000001}"
+          SQLTask:SqlStatementSource="TRUNCATE TABLE dbo.Dim_Date"
+          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\Generate Date Dimension"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Generate date dimension using recursive CTE"
+      DTS:DTSID="{EXEC-GEN-0001}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="Generate Date Dimension">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CONN-DW01-0001-0001-000000000001}"
+          SQLTask:SqlStatementSource="
+-- Generate Date Dimension using recursive CTE
+DECLARE @StartDate DATE = DATEFROMPARTS(?, 1, 1);
+DECLARE @EndDate DATE = DATEFROMPARTS(?, 12, 31);
+DECLARE @FiscalStartMonth INT = ?;
+
+WITH DateCTE AS (
+    SELECT @StartDate AS FullDate
+    UNION ALL
+    SELECT DATEADD(DAY, 1, FullDate)
+    FROM DateCTE
+    WHERE FullDate &lt; @EndDate
+)
+INSERT INTO dbo.Dim_Date (
+    DateKey, FullDate, Year, Quarter, QuarterName, Month, MonthName, MonthShort,
+    Week, DayOfMonth, DayOfWeek, DayName, DayShort, IsWeekend, IsHoliday,
+    FiscalYear, FiscalQuarter, LoadDate
+)
+SELECT
+    -- DateKey in YYYYMMDD format
+    CONVERT(INT, CONVERT(VARCHAR(8), FullDate, 112)) AS DateKey,
+    FullDate,
+    YEAR(FullDate) AS Year,
+    DATEPART(QUARTER, FullDate) AS Quarter,
+    'Q' + CAST(DATEPART(QUARTER, FullDate) AS VARCHAR(1)) AS QuarterName,
+    MONTH(FullDate) AS Month,
+    DATENAME(MONTH, FullDate) AS MonthName,
+    LEFT(DATENAME(MONTH, FullDate), 3) AS MonthShort,
+    DATEPART(WEEK, FullDate) AS Week,
+    DAY(FullDate) AS DayOfMonth,
+    DATEPART(WEEKDAY, FullDate) AS DayOfWeek,
+    DATENAME(WEEKDAY, FullDate) AS DayName,
+    LEFT(DATENAME(WEEKDAY, FullDate), 3) AS DayShort,
+    CASE WHEN DATEPART(WEEKDAY, FullDate) IN (1, 7) THEN 1 ELSE 0 END AS IsWeekend,
+    0 AS IsHoliday,
+    -- Fiscal Year (assuming fiscal year starts in July)
+    CASE WHEN MONTH(FullDate) >= @FiscalStartMonth
+         THEN YEAR(FullDate) + 1
+         ELSE YEAR(FullDate)
+    END AS FiscalYear,
+    -- Fiscal Quarter
+    CASE
+        WHEN MONTH(FullDate) >= @FiscalStartMonth THEN ((MONTH(FullDate) - @FiscalStartMonth) / 3) + 1
+        ELSE ((MONTH(FullDate) + 12 - @FiscalStartMonth) / 3) + 1
+    END AS FiscalQuarter,
+    GETDATE() AS LoadDate
+FROM DateCTE
+OPTION (MAXRECURSION 2000);
+
+-- Update major US holidays
+UPDATE dbo.Dim_Date SET IsHoliday = 1
+WHERE (Month = 1 AND DayOfMonth = 1)     -- New Year
+   OR (Month = 7 AND DayOfMonth = 4)     -- Independence Day
+   OR (Month = 12 AND DayOfMonth = 25)   -- Christmas
+   OR (Month = 11 AND DayOfWeek = 5 AND DayOfMonth BETWEEN 22 AND 28); -- Thanksgiving
+"
+          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ParameterBinding SQLTask:ParameterName="0" SQLTask:DtsVariableName="User::StartYear" SQLTask:ParameterDirection="Input" SQLTask:DataType="3" />
+          <SQLTask:ParameterBinding SQLTask:ParameterName="1" SQLTask:DtsVariableName="User::EndYear" SQLTask:ParameterDirection="Input" SQLTask:DataType="3" />
+          <SQLTask:ParameterBinding SQLTask:ParameterName="2" SQLTask:DtsVariableName="User::FiscalYearStartMonth" SQLTask:ParameterDirection="Input" SQLTask:DataType="3" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\Get Row Count"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Get number of rows inserted"
+      DTS:DTSID="{EXEC-CNT-0001}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="Get Row Count">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CONN-DW01-0001-0001-000000000001}"
+          SQLTask:SqlStatementSource="SELECT COUNT(*) FROM dbo.Dim_Date"
+          SQLTask:ResultType="ResultSetType_SingleRow"
+          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ResultBinding SQLTask:ResultName="0" SQLTask:DtsVariableName="User::RowsInserted" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\Log Success"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Log successful completion"
+      DTS:DTSID="{EXEC-LOG2-0001}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:ObjectName="Log Success">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CONN-DW01-0001-0001-000000000001}"
+          SQLTask:SqlStatementSource="UPDATE dbo.ETL_Log SET EndTime = GETDATE(), Status = 'Succeeded', RowsInserted = ? WHERE PackageName = '01_Load_Dim_Date' AND Status = 'Running'"
+          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ParameterBinding SQLTask:ParameterName="0" SQLTask:DtsVariableName="User::RowsInserted" SQLTask:ParameterDirection="Input" SQLTask:DataType="3" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint DTS:refId="Package.PC[Log to Truncate]" DTS:From="Package\Log Start" DTS:To="Package\Truncate Dim_Date" DTS:ObjectName="Log to Truncate" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PC[Truncate to Generate]" DTS:From="Package\Truncate Dim_Date" DTS:To="Package\Generate Date Dimension" DTS:ObjectName="Truncate to Generate" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PC[Generate to Count]" DTS:From="Package\Generate Date Dimension" DTS:To="Package\Get Row Count" DTS:ObjectName="Generate to Count" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PC[Count to Log]" DTS:From="Package\Get Row Count" DTS:To="Package\Log Success" DTS:ObjectName="Count to Log" />
+  </DTS:PrecedenceConstraints>
+</DTS:Executable>

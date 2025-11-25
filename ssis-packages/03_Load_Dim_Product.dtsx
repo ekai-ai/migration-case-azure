@@ -1,0 +1,177 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:DTSID="{PKG03-DIM-PROD-0001}"
+  DTS:ObjectName="03_Load_Dim_Product"
+  DTS:PackageType="5">
+  <DTS:Property DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager DTS:refId="Package.ConnectionManagers[NorthwindDB]" DTS:CreationName="OLEDB" DTS:DTSID="{CONN-NW-0003}" DTS:ObjectName="NorthwindDB">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables>
+    <DTS:Variable DTS:DTSID="{VAR-PRD-001}" DTS:Namespace="User" DTS:ObjectName="RowsInserted"><DTS:VariableValue DTS:DataType="3">0</DTS:VariableValue></DTS:Variable>
+    <DTS:Variable DTS:DTSID="{VAR-PRD-002}" DTS:Namespace="User" DTS:ObjectName="BudgetPriceThreshold"><DTS:VariableValue DTS:DataType="6">15.00</DTS:VariableValue></DTS:Variable>
+    <DTS:Variable DTS:DTSID="{VAR-PRD-003}" DTS:Namespace="User" DTS:ObjectName="PremiumPriceThreshold"><DTS:VariableValue DTS:DataType="6">50.00</DTS:VariableValue></DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable DTS:refId="Package\Log Start" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-PRD1}" DTS:ObjectName="Log Start">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-NW-0003}" SQLTask:SqlStatementSource="INSERT INTO dbo.ETL_Log (PackageName, TaskName, StartTime, Status) VALUES ('03_Load_Dim_Product', 'Full Load', GETDATE(), 'Running')" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Truncate Dim_Product" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-TRUNC-PRD}" DTS:ObjectName="Truncate Dim_Product">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-NW-0003}" SQLTask:SqlStatementSource="DELETE FROM dbo.Dim_Product WHERE IsCurrent = 1" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Load Product Dimension" DTS:CreationName="Microsoft.Pipeline" DTS:DTSID="{DFT-PRD-0001}" DTS:ObjectName="Load Product Dimension">
+      <DTS:ObjectData>
+        <pipeline version="1">
+          <components>
+            <component refId="Package\Load Product Dimension\Extract Products" componentClassID="Microsoft.OLEDBSource" name="Extract Products" version="7">
+              <properties>
+                <property name="SqlCommand" dataType="System.String">SELECT
+    p.ProductID,
+    p.ProductName,
+    p.CategoryID,
+    c.CategoryName,
+    c.Description AS CategoryDescription,
+    p.SupplierID,
+    s.CompanyName AS SupplierName,
+    s.Country AS SupplierCountry,
+    s.Region AS SupplierRegion,
+    p.QuantityPerUnit,
+    p.UnitPrice,
+    p.UnitsInStock,
+    p.UnitsOnOrder,
+    p.ReorderLevel,
+    p.Discontinued
+FROM Products p
+INNER JOIN Categories c ON p.CategoryID = c.CategoryID
+INNER JOIN Suppliers s ON p.SupplierID = s.SupplierID</property>
+                <property name="AccessMode" dataType="System.Int32">2</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Product Dimension\Extract Products.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindDB]" name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output refId="Package\Load Product Dimension\Extract Products.Outputs[OLE DB Source Output]" name="OLE DB Source Output">
+                  <outputColumns>
+                    <outputColumn dataType="i4" name="ProductID" />
+                    <outputColumn dataType="wstr" length="40" name="ProductName" />
+                    <outputColumn dataType="i4" name="CategoryID" />
+                    <outputColumn dataType="wstr" length="15" name="CategoryName" />
+                    <outputColumn dataType="nText" name="CategoryDescription" />
+                    <outputColumn dataType="i4" name="SupplierID" />
+                    <outputColumn dataType="wstr" length="40" name="SupplierName" />
+                    <outputColumn dataType="wstr" length="15" name="SupplierCountry" />
+                    <outputColumn dataType="wstr" length="15" name="SupplierRegion" />
+                    <outputColumn dataType="wstr" length="20" name="QuantityPerUnit" />
+                    <outputColumn dataType="cy" name="UnitPrice" />
+                    <outputColumn dataType="i2" name="UnitsInStock" />
+                    <outputColumn dataType="i2" name="UnitsOnOrder" />
+                    <outputColumn dataType="i2" name="ReorderLevel" />
+                    <outputColumn dataType="bool" name="Discontinued" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Product Dimension\Derive Product Attributes" componentClassID="Microsoft.DerivedColumn" name="Derive Product Attributes">
+              <outputs>
+                <output refId="Package\Load Product Dimension\Derive Product Attributes.Outputs[Derived Column Output]" name="Derived Column Output">
+                  <outputColumns>
+                    <outputColumn dataType="wstr" length="20" name="PriceRange">
+                      <properties>
+                        <property name="Expression" dataType="System.String">UnitPrice &lt; @[User::BudgetPriceThreshold] ? "Budget" : (UnitPrice &gt;= @[User::PremiumPriceThreshold] ? "Premium" : "Mid-Range")</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="wstr" length="20" name="StockStatus">
+                      <properties>
+                        <property name="Expression" dataType="System.String">UnitsInStock == 0 ? "Out of Stock" : (UnitsInStock &lt;= ReorderLevel ? "Low Stock" : "In Stock")</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="cy" name="InventoryValue">
+                      <properties>
+                        <property name="Expression" dataType="System.String">(DT_CY)(UnitPrice * UnitsInStock)</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="dbDate" name="EffectiveDate">
+                      <properties>
+                        <property name="Expression" dataType="System.String">(DT_DBDATE)GETDATE()</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="bool" name="IsCurrent">
+                      <properties>
+                        <property name="Expression" dataType="System.String">TRUE</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn dataType="dbTimeStamp" name="LoadDate">
+                      <properties>
+                        <property name="Expression" dataType="System.String">GETDATE()</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Product Dimension\Conditional Split" componentClassID="Microsoft.ConditionalSplit" name="Conditional Split" description="Split products by category for different processing">
+              <outputs>
+                <output refId="Package\Load Product Dimension\Conditional Split.Outputs[Discontinued Products]" name="Discontinued Products">
+                  <properties>
+                    <property name="Expression" dataType="System.String">Discontinued == TRUE</property>
+                    <property name="EvaluationOrder" dataType="System.Int32">0</property>
+                  </properties>
+                </output>
+                <output refId="Package\Load Product Dimension\Conditional Split.Outputs[Active Products]" name="Active Products">
+                  <properties>
+                    <property name="IsDefaultOut" dataType="System.Boolean">true</property>
+                  </properties>
+                </output>
+              </outputs>
+            </component>
+            <component refId="Package\Load Product Dimension\Row Count" componentClassID="Microsoft.RowCount" name="Row Count">
+              <properties>
+                <property name="VariableName" dataType="System.String">User::RowsInserted</property>
+              </properties>
+            </component>
+            <component refId="Package\Load Product Dimension\Union All" componentClassID="Microsoft.UnionAll" name="Union All" description="Merge discontinued and active products" />
+            <component refId="Package\Load Product Dimension\Insert Products" componentClassID="Microsoft.OLEDBDestination" name="Insert Products" version="4">
+              <properties>
+                <property name="OpenRowset" dataType="System.String">[dbo].[Dim_Product]</property>
+                <property name="AccessMode" dataType="System.Int32">3</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Load Product Dimension\Insert Products.Connections[OleDbConnection]" connectionManagerID="Package.ConnectionManagers[NorthwindDB]" name="OleDbConnection" />
+              </connections>
+            </component>
+          </components>
+          <paths>
+            <path startId="Package\Load Product Dimension\Extract Products.Outputs[OLE DB Source Output]" endId="Package\Load Product Dimension\Derive Product Attributes.Inputs[Derived Column Input]" name="Extract to Derive" />
+            <path startId="Package\Load Product Dimension\Derive Product Attributes.Outputs[Derived Column Output]" endId="Package\Load Product Dimension\Conditional Split.Inputs[Conditional Split Input]" name="Derive to Split" />
+            <path startId="Package\Load Product Dimension\Conditional Split.Outputs[Discontinued Products]" endId="Package\Load Product Dimension\Union All.Inputs[Union All Input 1]" name="Discontinued to Union" />
+            <path startId="Package\Load Product Dimension\Conditional Split.Outputs[Active Products]" endId="Package\Load Product Dimension\Union All.Inputs[Union All Input 2]" name="Active to Union" />
+            <path startId="Package\Load Product Dimension\Union All.Outputs[Union All Output 1]" endId="Package\Load Product Dimension\Row Count.Inputs[Row Count Input 1]" name="Union to RowCount" />
+            <path startId="Package\Load Product Dimension\Row Count.Outputs[Row Count Output 1]" endId="Package\Load Product Dimension\Insert Products.Inputs[OLE DB Destination Input]" name="RowCount to Insert" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Log Success" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-PRD2}" DTS:ObjectName="Log Success">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-NW-0003}" SQLTask:SqlStatementSource="UPDATE dbo.ETL_Log SET EndTime = GETDATE(), Status = 'Succeeded', RowsInserted = ? WHERE PackageName = '03_Load_Dim_Product' AND Status = 'Running'" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ParameterBinding SQLTask:ParameterName="0" SQLTask:DtsVariableName="User::RowsInserted" SQLTask:ParameterDirection="Input" SQLTask:DataType="3" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint DTS:From="Package\Log Start" DTS:To="Package\Truncate Dim_Product" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Truncate Dim_Product" DTS:To="Package\Load Product Dimension" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Load Product Dimension" DTS:To="Package\Log Success" />
+  </DTS:PrecedenceConstraints>
+</DTS:Executable>

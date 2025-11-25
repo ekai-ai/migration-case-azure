@@ -1,0 +1,137 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationName="Microsoft.Package"
+  DTS:DTSID="{PKG00-MASTER-0001}"
+  DTS:ObjectName="00_Master_ETL_Orchestration"
+  DTS:PackageType="5"
+  DTS:Description="Master package that orchestrates the entire ETL process for the Northwind semantic model">
+  <DTS:Property DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager DTS:refId="Package.ConnectionManagers[NorthwindDW]" DTS:CreationName="OLEDB" DTS:DTSID="{CONN-DW-MASTER}" DTS:ObjectName="NorthwindDW">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables>
+    <DTS:Variable DTS:DTSID="{VAR-M-001}" DTS:Namespace="User" DTS:ObjectName="PackageDirectory"><DTS:VariableValue DTS:DataType="8">C:\SSIS_Packages\</DTS:VariableValue></DTS:Variable>
+    <DTS:Variable DTS:DTSID="{VAR-M-002}" DTS:Namespace="User" DTS:ObjectName="ExecutionID"><DTS:VariableValue DTS:DataType="8"></DTS:VariableValue></DTS:Variable>
+    <DTS:Variable DTS:DTSID="{VAR-M-003}" DTS:Namespace="User" DTS:ObjectName="ETLStartTime"><DTS:VariableValue DTS:DataType="7">2025-01-01T00:00:00</DTS:VariableValue></DTS:Variable>
+    <DTS:Variable DTS:DTSID="{VAR-M-004}" DTS:Namespace="User" DTS:ObjectName="FullRefresh"><DTS:VariableValue DTS:DataType="11">true</DTS:VariableValue></DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <!-- PHASE 1: Initialize -->
+    <DTS:Executable DTS:refId="Package\Initialize ETL Run" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-INIT}" DTS:ObjectName="Initialize ETL Run">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-MASTER}" SQLTask:SqlStatementSource="
+-- Log master ETL start
+INSERT INTO dbo.ETL_Log (PackageName, TaskName, StartTime, Status, ExecutionID)
+VALUES ('00_Master_ETL_Orchestration', 'Full ETL Run', GETDATE(), 'Running', NEWID());
+-- Create schema if running for first time
+EXEC sp_executesql N'
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = ''Dim_Date'')
+BEGIN
+    PRINT ''Schema not found - please run 01_create_semantic_model.sql first''
+END
+';
+" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <!-- PHASE 2: Load Dimensions (Sequential - Date first, then others) -->
+    <DTS:Executable DTS:refId="Package\Load Dimensions" DTS:CreationName="STOCK:SEQUENCE" DTS:Description="Load all dimension tables" DTS:DTSID="{SEQ-DIM}" DTS:ObjectName="Load Dimensions">
+      <DTS:Executables>
+        <DTS:Executable DTS:refId="Package\Load Dimensions\Execute 01_Load_Dim_Date" DTS:CreationName="Microsoft.ExecutePackageTask" DTS:Description="Load date dimension" DTS:DTSID="{EPT-DIM-DATE}" DTS:ObjectName="Execute 01_Load_Dim_Date">
+          <DTS:ObjectData>
+            <ExecutePackageTask>
+              <PackageName>01_Load_Dim_Date.dtsx</PackageName>
+              <Connection>NorthwindDW</Connection>
+            </ExecutePackageTask>
+          </DTS:ObjectData>
+        </DTS:Executable>
+        <!-- Parallel dimension loads after Date dimension -->
+        <DTS:Executable DTS:refId="Package\Load Dimensions\Load Other Dimensions" DTS:CreationName="STOCK:SEQUENCE" DTS:DTSID="{SEQ-DIM-OTHER}" DTS:ObjectName="Load Other Dimensions" DTS:MaxConcurrentExecutables="3">
+          <DTS:Executables>
+            <DTS:Executable DTS:refId="Package\Load Dimensions\Load Other Dimensions\Execute 02_Load_Dim_Customer" DTS:CreationName="Microsoft.ExecutePackageTask" DTS:DTSID="{EPT-DIM-CUS}" DTS:ObjectName="Execute 02_Load_Dim_Customer">
+              <DTS:ObjectData>
+                <ExecutePackageTask>
+                  <PackageName>02_Load_Dim_Customer.dtsx</PackageName>
+                </ExecutePackageTask>
+              </DTS:ObjectData>
+            </DTS:Executable>
+            <DTS:Executable DTS:refId="Package\Load Dimensions\Load Other Dimensions\Execute 03_Load_Dim_Product" DTS:CreationName="Microsoft.ExecutePackageTask" DTS:DTSID="{EPT-DIM-PRD}" DTS:ObjectName="Execute 03_Load_Dim_Product">
+              <DTS:ObjectData>
+                <ExecutePackageTask>
+                  <PackageName>03_Load_Dim_Product.dtsx</PackageName>
+                </ExecutePackageTask>
+              </DTS:ObjectData>
+            </DTS:Executable>
+            <DTS:Executable DTS:refId="Package\Load Dimensions\Load Other Dimensions\Execute 04_Load_Dim_Employee" DTS:CreationName="Microsoft.ExecutePackageTask" DTS:DTSID="{EPT-DIM-EMP}" DTS:ObjectName="Execute 04_Load_Dim_Employee">
+              <DTS:ObjectData>
+                <ExecutePackageTask>
+                  <PackageName>04_Load_Dim_Employee.dtsx</PackageName>
+                </ExecutePackageTask>
+              </DTS:ObjectData>
+            </DTS:Executable>
+          </DTS:Executables>
+        </DTS:Executable>
+      </DTS:Executables>
+      <DTS:PrecedenceConstraints>
+        <DTS:PrecedenceConstraint DTS:From="Package\Load Dimensions\Execute 01_Load_Dim_Date" DTS:To="Package\Load Dimensions\Load Other Dimensions" />
+      </DTS:PrecedenceConstraints>
+    </DTS:Executable>
+    <!-- PHASE 3: Load Fact Tables -->
+    <DTS:Executable DTS:refId="Package\Load Fact Tables" DTS:CreationName="STOCK:SEQUENCE" DTS:Description="Load fact tables after dimensions" DTS:DTSID="{SEQ-FACT}" DTS:ObjectName="Load Fact Tables">
+      <DTS:Executables>
+        <DTS:Executable DTS:refId="Package\Load Fact Tables\Execute 05_Load_Fact_Sales" DTS:CreationName="Microsoft.ExecutePackageTask" DTS:DTSID="{EPT-FACT-SALES}" DTS:ObjectName="Execute 05_Load_Fact_Sales">
+          <DTS:ObjectData>
+            <ExecutePackageTask>
+              <PackageName>05_Load_Fact_Sales.dtsx</PackageName>
+            </ExecutePackageTask>
+          </DTS:ObjectData>
+        </DTS:Executable>
+      </DTS:Executables>
+    </DTS:Executable>
+    <!-- PHASE 4: Build Aggregations -->
+    <DTS:Executable DTS:refId="Package\Build Aggregations" DTS:CreationName="Microsoft.ExecutePackageTask" DTS:DTSID="{EPT-AGG}" DTS:ObjectName="Execute 06_Build_Aggregations">
+      <DTS:ObjectData>
+        <ExecutePackageTask>
+          <PackageName>06_Build_Aggregations.dtsx</PackageName>
+        </ExecutePackageTask>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <!-- PHASE 5: Finalize -->
+    <DTS:Executable DTS:refId="Package\Finalize ETL Run" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-FINAL}" DTS:ObjectName="Finalize ETL Run">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-MASTER}" SQLTask:SqlStatementSource="
+-- Update master ETL log
+UPDATE dbo.ETL_Log
+SET EndTime = GETDATE(),
+    Status = 'Succeeded',
+    RowsInserted = (SELECT SUM(RowsInserted) FROM dbo.ETL_Log WHERE StartTime >= ? AND PackageName != '00_Master_ETL_Orchestration')
+WHERE PackageName = '00_Master_ETL_Orchestration' AND Status = 'Running';
+
+-- Generate ETL summary
+SELECT
+    PackageName,
+    Status,
+    RowsInserted,
+    RowsUpdated,
+    DATEDIFF(SECOND, StartTime, EndTime) AS DurationSeconds
+FROM dbo.ETL_Log
+WHERE StartTime >= ?
+ORDER BY StartTime;
+" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ParameterBinding SQLTask:ParameterName="0" SQLTask:DtsVariableName="User::ETLStartTime" SQLTask:ParameterDirection="Input" SQLTask:DataType="7" />
+          <SQLTask:ParameterBinding SQLTask:ParameterName="1" SQLTask:DtsVariableName="User::ETLStartTime" SQLTask:ParameterDirection="Input" SQLTask:DataType="7" />
+        </SQLTask:SqlTaskData>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint DTS:From="Package\Initialize ETL Run" DTS:To="Package\Load Dimensions" DTS:ObjectName="Init to Dims" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Load Dimensions" DTS:To="Package\Load Fact Tables" DTS:ObjectName="Dims to Facts" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Load Fact Tables" DTS:To="Package\Build Aggregations" DTS:ObjectName="Facts to Aggs" />
+    <DTS:PrecedenceConstraint DTS:From="Package\Build Aggregations" DTS:To="Package\Finalize ETL Run" DTS:ObjectName="Aggs to Final" />
+  </DTS:PrecedenceConstraints>
+</DTS:Executable>

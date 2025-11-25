@@ -1,0 +1,392 @@
+<?xml version="1.0"?>
+<DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
+  DTS:refId="Package"
+  DTS:CreationDate="11/25/2025 12:00:00 PM"
+  DTS:CreationName="Microsoft.Package"
+  DTS:CreatorComputerName="ekai-magent-vm"
+  DTS:CreatorName="ekaiadmin"
+  DTS:DTSID="{C3D4E5F6-7890-1234-CDEF-123456789012}"
+  DTS:ExecutableType="Microsoft.Package"
+  DTS:LastModifiedProductVersion="16.0.5556.0"
+  DTS:LocaleID="1033"
+  DTS:ObjectName="SalesSummaryAggregation"
+  DTS:PackageType="5"
+  DTS:VersionBuild="1"
+  DTS:VersionGUID="{33333333-4444-5555-6666-777777777777}">
+  <DTS:Property DTS:Name="PackageFormatVersion">8</DTS:Property>
+  <DTS:ConnectionManagers>
+    <DTS:ConnectionManager
+      DTS:refId="Package.ConnectionManagers[NorthwindConnection]"
+      DTS:CreationName="OLEDB"
+      DTS:DTSID="{CONN2222-2222-2222-2222-222222222222}"
+      DTS:ObjectName="NorthwindConnection">
+      <DTS:ObjectData>
+        <DTS:ConnectionManager
+          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;Auto Translate=False;">
+        </DTS:ConnectionManager>
+      </DTS:ObjectData>
+    </DTS:ConnectionManager>
+  </DTS:ConnectionManagers>
+  <DTS:Variables>
+    <DTS:Variable
+      DTS:CreationName=""
+      DTS:DTSID="{VAR55555-5555-5555-5555-555555555555}"
+      DTS:Namespace="User"
+      DTS:ObjectName="ReportYear">
+      <DTS:VariableValue DTS:DataType="3">1997</DTS:VariableValue>
+    </DTS:Variable>
+  </DTS:Variables>
+  <DTS:Executables>
+    <DTS:Executable
+      DTS:refId="Package\Setup Summary Tables"
+      DTS:CreationName="Microsoft.ExecuteSQLTask"
+      DTS:Description="Create summary tables"
+      DTS:DTSID="{EXEC4444-4444-4444-4444-444444444444}"
+      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="Setup Summary Tables">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData
+          SQLTask:Connection="{CONN2222-2222-2222-2222-222222222222}"
+          SQLTask:SqlStatementSource="
+-- Sales by Category Summary
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Sales_By_Category')
+CREATE TABLE dbo.Sales_By_Category (
+    CategoryID INT,
+    CategoryName NVARCHAR(15),
+    TotalSales MONEY,
+    TotalQuantity INT,
+    OrderCount INT,
+    AvgOrderValue MONEY,
+    ReportYear INT,
+    LoadDate DATETIME
+);
+
+-- Sales by Customer Summary
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Sales_By_Customer')
+CREATE TABLE dbo.Sales_By_Customer (
+    CustomerID NVARCHAR(5),
+    CustomerName NVARCHAR(40),
+    Country NVARCHAR(15),
+    TotalSales MONEY,
+    OrderCount INT,
+    AvgOrderValue MONEY,
+    FirstOrderDate DATETIME,
+    LastOrderDate DATETIME,
+    ReportYear INT,
+    LoadDate DATETIME
+);
+
+-- Sales by Month Summary
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Sales_By_Month')
+CREATE TABLE dbo.Sales_By_Month (
+    SalesYear INT,
+    SalesMonth INT,
+    MonthName NVARCHAR(20),
+    TotalSales MONEY,
+    TotalFreight MONEY,
+    OrderCount INT,
+    AvgDaysToShip DECIMAL(10,2),
+    LoadDate DATETIME
+);
+
+-- Product Performance Summary
+IF NOT EXISTS (SELECT * FROM sys.tables WHERE name = 'Product_Performance')
+CREATE TABLE dbo.Product_Performance (
+    ProductID INT,
+    ProductName NVARCHAR(40),
+    CategoryName NVARCHAR(15),
+    SupplierName NVARCHAR(40),
+    TotalRevenue MONEY,
+    TotalQuantitySold INT,
+    TimesOrdered INT,
+    AvgUnitPrice MONEY,
+    ReportYear INT,
+    LoadDate DATETIME
+);
+
+TRUNCATE TABLE dbo.Sales_By_Category;
+TRUNCATE TABLE dbo.Sales_By_Customer;
+TRUNCATE TABLE dbo.Sales_By_Month;
+TRUNCATE TABLE dbo.Product_Performance;
+"
+          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\Aggregate Sales By Category"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:Description="Aggregate sales by product category"
+      DTS:DTSID="{DFT33333-3333-3333-3333-333333333333}"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="Aggregate Sales By Category">
+      <DTS:ObjectData>
+        <pipeline version="1">
+          <components>
+            <component
+              refId="Package\Aggregate Sales By Category\Sales Data Source"
+              componentClassID="Microsoft.OLEDBSource"
+              name="Sales Data Source"
+              version="7">
+              <properties>
+                <property name="SqlCommand" dataType="System.String">SELECT
+    c.CategoryID,
+    c.CategoryName,
+    od.UnitPrice * od.Quantity * (1 - od.Discount) as LineTotal,
+    od.Quantity,
+    o.OrderID
+FROM Categories c
+INNER JOIN Products p ON c.CategoryID = p.CategoryID
+INNER JOIN [Order Details] od ON p.ProductID = od.ProductID
+INNER JOIN Orders o ON od.OrderID = o.OrderID
+WHERE YEAR(o.OrderDate) = ?</property>
+                <property name="AccessMode" dataType="System.Int32">2</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Aggregate Sales By Category\Sales Data Source.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindConnection]"
+                  name="OleDbConnection" />
+              </connections>
+              <outputs>
+                <output refId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output]" name="OLE DB Source Output">
+                  <outputColumns>
+                    <outputColumn refId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[CategoryID]" dataType="i4" name="CategoryID" />
+                    <outputColumn refId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[CategoryName]" dataType="wstr" length="15" name="CategoryName" />
+                    <outputColumn refId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[LineTotal]" dataType="cy" name="LineTotal" />
+                    <outputColumn refId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[Quantity]" dataType="i2" name="Quantity" />
+                    <outputColumn refId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[OrderID]" dataType="i4" name="OrderID" />
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\Aggregate Sales By Category\Aggregate"
+              componentClassID="Microsoft.Aggregate"
+              description="Aggregate by Category"
+              name="Aggregate"
+              version="5">
+              <properties>
+                <property name="KeyScale" dataType="System.Int32">0</property>
+                <property name="Keys" dataType="System.Int32">0</property>
+              </properties>
+              <inputs>
+                <input refId="Package\Aggregate Sales By Category\Aggregate.Inputs[Aggregate Input 1]" name="Aggregate Input 1">
+                  <inputColumns>
+                    <inputColumn refId="Package\Aggregate Sales By Category\Aggregate.Inputs[Aggregate Input 1].Columns[CategoryID]"
+                      cachedDataType="i4" cachedName="CategoryID"
+                      lineageId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[CategoryID]" />
+                    <inputColumn refId="Package\Aggregate Sales By Category\Aggregate.Inputs[Aggregate Input 1].Columns[CategoryName]"
+                      cachedDataType="wstr" cachedLength="15" cachedName="CategoryName"
+                      lineageId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[CategoryName]" />
+                    <inputColumn refId="Package\Aggregate Sales By Category\Aggregate.Inputs[Aggregate Input 1].Columns[LineTotal]"
+                      cachedDataType="cy" cachedName="LineTotal"
+                      lineageId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[LineTotal]" />
+                    <inputColumn refId="Package\Aggregate Sales By Category\Aggregate.Inputs[Aggregate Input 1].Columns[Quantity]"
+                      cachedDataType="i2" cachedName="Quantity"
+                      lineageId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[Quantity]" />
+                    <inputColumn refId="Package\Aggregate Sales By Category\Aggregate.Inputs[Aggregate Input 1].Columns[OrderID]"
+                      cachedDataType="i4" cachedName="OrderID"
+                      lineageId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output].Columns[OrderID]" />
+                  </inputColumns>
+                </input>
+              </inputs>
+              <outputs>
+                <output refId="Package\Aggregate Sales By Category\Aggregate.Outputs[Aggregate Output 1]" name="Aggregate Output 1">
+                  <outputColumns>
+                    <outputColumn refId="Package\Aggregate Sales By Category\Aggregate.Outputs[Aggregate Output 1].Columns[CategoryID]" dataType="i4" name="CategoryID">
+                      <properties>
+                        <property name="AggregationType" dataType="System.Int32">0</property>
+                        <property name="AggregationColumnId" dataType="System.Int32">1</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Aggregate Sales By Category\Aggregate.Outputs[Aggregate Output 1].Columns[CategoryName]" dataType="wstr" length="15" name="CategoryName">
+                      <properties>
+                        <property name="AggregationType" dataType="System.Int32">0</property>
+                        <property name="AggregationColumnId" dataType="System.Int32">2</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Aggregate Sales By Category\Aggregate.Outputs[Aggregate Output 1].Columns[TotalSales]" dataType="cy" name="TotalSales">
+                      <properties>
+                        <property name="AggregationType" dataType="System.Int32">4</property>
+                        <property name="AggregationColumnId" dataType="System.Int32">3</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Aggregate Sales By Category\Aggregate.Outputs[Aggregate Output 1].Columns[TotalQuantity]" dataType="i8" name="TotalQuantity">
+                      <properties>
+                        <property name="AggregationType" dataType="System.Int32">4</property>
+                        <property name="AggregationColumnId" dataType="System.Int32">4</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Aggregate Sales By Category\Aggregate.Outputs[Aggregate Output 1].Columns[OrderCount]" dataType="i4" name="OrderCount">
+                      <properties>
+                        <property name="AggregationType" dataType="System.Int32">6</property>
+                        <property name="AggregationColumnId" dataType="System.Int32">5</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\Aggregate Sales By Category\Add Calculated Fields"
+              componentClassID="Microsoft.DerivedColumn"
+              name="Add Calculated Fields">
+              <outputs>
+                <output refId="Package\Aggregate Sales By Category\Add Calculated Fields.Outputs[Derived Column Output]" name="Derived Column Output">
+                  <outputColumns>
+                    <outputColumn refId="Package\Aggregate Sales By Category\Add Calculated Fields.Outputs[Derived Column Output].Columns[AvgOrderValue]" dataType="cy" name="AvgOrderValue">
+                      <properties>
+                        <property name="Expression" dataType="System.String">TotalSales / OrderCount</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Aggregate Sales By Category\Add Calculated Fields.Outputs[Derived Column Output].Columns[ReportYear]" dataType="i4" name="ReportYear">
+                      <properties>
+                        <property name="Expression" dataType="System.String">@[User::ReportYear]</property>
+                      </properties>
+                    </outputColumn>
+                    <outputColumn refId="Package\Aggregate Sales By Category\Add Calculated Fields.Outputs[Derived Column Output].Columns[LoadDate]" dataType="dbTimeStamp" name="LoadDate">
+                      <properties>
+                        <property name="Expression" dataType="System.String">GETDATE()</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\Aggregate Sales By Category\Category Destination"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="Category Destination"
+              version="4">
+              <properties>
+                <property name="OpenRowset" dataType="System.String">[dbo].[Sales_By_Category]</property>
+                <property name="AccessMode" dataType="System.Int32">3</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Aggregate Sales By Category\Category Destination.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindConnection]"
+                  name="OleDbConnection" />
+              </connections>
+            </component>
+          </components>
+          <paths>
+            <path refId="Package\Aggregate Sales By Category.Paths[Source to Aggregate]"
+              startId="Package\Aggregate Sales By Category\Sales Data Source.Outputs[OLE DB Source Output]"
+              endId="Package\Aggregate Sales By Category\Aggregate.Inputs[Aggregate Input 1]"
+              name="Source to Aggregate" />
+            <path refId="Package\Aggregate Sales By Category.Paths[Aggregate to Derived]"
+              startId="Package\Aggregate Sales By Category\Aggregate.Outputs[Aggregate Output 1]"
+              endId="Package\Aggregate Sales By Category\Add Calculated Fields.Inputs[Derived Column Input]"
+              name="Aggregate to Derived" />
+            <path refId="Package\Aggregate Sales By Category.Paths[Derived to Destination]"
+              startId="Package\Aggregate Sales By Category\Add Calculated Fields.Outputs[Derived Column Output]"
+              endId="Package\Aggregate Sales By Category\Category Destination.Inputs[OLE DB Destination Input]"
+              name="Derived to Destination" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable
+      DTS:refId="Package\Aggregate Sales By Month"
+      DTS:CreationName="Microsoft.Pipeline"
+      DTS:Description="Monthly sales aggregation"
+      DTS:DTSID="{DFT44444-4444-4444-4444-444444444444}"
+      DTS:ExecutableType="Microsoft.Pipeline"
+      DTS:LocaleID="-1"
+      DTS:ObjectName="Aggregate Sales By Month">
+      <DTS:ObjectData>
+        <pipeline version="1">
+          <components>
+            <component
+              refId="Package\Aggregate Sales By Month\Monthly Source"
+              componentClassID="Microsoft.OLEDBSource"
+              name="Monthly Source"
+              version="7">
+              <properties>
+                <property name="SqlCommand" dataType="System.String">SELECT
+    YEAR(o.OrderDate) as SalesYear,
+    MONTH(o.OrderDate) as SalesMonth,
+    DATENAME(month, o.OrderDate) as MonthName,
+    SUM(od.UnitPrice * od.Quantity * (1 - od.Discount)) as TotalSales,
+    SUM(o.Freight) as TotalFreight,
+    COUNT(DISTINCT o.OrderID) as OrderCount,
+    AVG(CAST(DATEDIFF(day, o.OrderDate, o.ShippedDate) as DECIMAL(10,2))) as AvgDaysToShip
+FROM Orders o
+INNER JOIN [Order Details] od ON o.OrderID = od.OrderID
+WHERE o.ShippedDate IS NOT NULL
+GROUP BY YEAR(o.OrderDate), MONTH(o.OrderDate), DATENAME(month, o.OrderDate)
+ORDER BY SalesYear, SalesMonth</property>
+                <property name="AccessMode" dataType="System.Int32">2</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Aggregate Sales By Month\Monthly Source.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindConnection]"
+                  name="OleDbConnection" />
+              </connections>
+            </component>
+            <component
+              refId="Package\Aggregate Sales By Month\Add Load Date"
+              componentClassID="Microsoft.DerivedColumn"
+              name="Add Load Date">
+              <outputs>
+                <output refId="Package\Aggregate Sales By Month\Add Load Date.Outputs[Derived Column Output]" name="Derived Column Output">
+                  <outputColumns>
+                    <outputColumn refId="Package\Aggregate Sales By Month\Add Load Date.Outputs[Derived Column Output].Columns[LoadDate]" dataType="dbTimeStamp" name="LoadDate">
+                      <properties>
+                        <property name="Expression" dataType="System.String">GETDATE()</property>
+                      </properties>
+                    </outputColumn>
+                  </outputColumns>
+                </output>
+              </outputs>
+            </component>
+            <component
+              refId="Package\Aggregate Sales By Month\Month Destination"
+              componentClassID="Microsoft.OLEDBDestination"
+              name="Month Destination"
+              version="4">
+              <properties>
+                <property name="OpenRowset" dataType="System.String">[dbo].[Sales_By_Month]</property>
+                <property name="AccessMode" dataType="System.Int32">3</property>
+              </properties>
+              <connections>
+                <connection refId="Package\Aggregate Sales By Month\Month Destination.Connections[OleDbConnection]"
+                  connectionManagerID="Package.ConnectionManagers[NorthwindConnection]"
+                  name="OleDbConnection" />
+              </connections>
+            </component>
+          </components>
+          <paths>
+            <path refId="Package\Aggregate Sales By Month.Paths[Source to Derived]"
+              startId="Package\Aggregate Sales By Month\Monthly Source.Outputs[OLE DB Source Output]"
+              endId="Package\Aggregate Sales By Month\Add Load Date.Inputs[Derived Column Input]"
+              name="Source to Derived" />
+            <path refId="Package\Aggregate Sales By Month.Paths[Derived to Destination]"
+              startId="Package\Aggregate Sales By Month\Add Load Date.Outputs[Derived Column Output]"
+              endId="Package\Aggregate Sales By Month\Month Destination.Inputs[OLE DB Destination Input]"
+              name="Derived to Destination" />
+          </paths>
+        </pipeline>
+      </DTS:ObjectData>
+    </DTS:Executable>
+  </DTS:Executables>
+  <DTS:PrecedenceConstraints>
+    <DTS:PrecedenceConstraint
+      DTS:refId="Package.PrecedenceConstraints[Setup to Category]"
+      DTS:CreationName=""
+      DTS:DTSID="{PC444444-4444-4444-4444-444444444444}"
+      DTS:From="Package\Setup Summary Tables"
+      DTS:LogicalAnd="True"
+      DTS:ObjectName="Setup to Category"
+      DTS:To="Package\Aggregate Sales By Category" />
+    <DTS:PrecedenceConstraint
+      DTS:refId="Package.PrecedenceConstraints[Setup to Month]"
+      DTS:CreationName=""
+      DTS:DTSID="{PC555555-5555-5555-5555-555555555555}"
+      DTS:From="Package\Setup Summary Tables"
+      DTS:LogicalAnd="True"
+      DTS:ObjectName="Setup to Month"
+      DTS:To="Package\Aggregate Sales By Month" />
+  </DTS:PrecedenceConstraints>
+</DTS:Executable>
