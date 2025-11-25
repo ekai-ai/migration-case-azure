@@ -10,7 +10,7 @@
   <DTS:ConnectionManagers>
     <DTS:ConnectionManager DTS:refId="Package.ConnectionManagers[NorthwindDB]" DTS:CreationName="OLEDB" DTS:DTSID="{CONN-NW-0004}" DTS:ObjectName="NorthwindDB">
       <DTS:ObjectData>
-        <DTS:ConnectionManager DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;" />
+        <DTS:ConnectionManager DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=MSOLEDBSQL;Integrated Security=SSPI;" />
       </DTS:ObjectData>
     </DTS:ConnectionManager>
   </DTS:ConnectionManagers>

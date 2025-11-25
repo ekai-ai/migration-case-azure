@@ -20,7 +20,7 @@
       DTS:ObjectName="NorthwindSource">
       <DTS:ObjectData>
         <DTS:ConnectionManager
-          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;">
+          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=MSOLEDBSQL;Integrated Security=SSPI;">
         </DTS:ConnectionManager>
       </DTS:ObjectData>
     </DTS:ConnectionManager>
@@ -31,7 +31,7 @@
       DTS:ObjectName="NorthwindDW">
       <DTS:ObjectData>
         <DTS:ConnectionManager
-          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=SQLNCLI11.1;Integrated Security=SSPI;">
+          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=MSOLEDBSQL;Integrated Security=SSPI;">
         </DTS:ConnectionManager>
       </DTS:ObjectData>
     </DTS:ConnectionManager>
