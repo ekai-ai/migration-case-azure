@@ -233,8 +233,8 @@ ORDER BY fs.DateKey;
     </DTS:Executable>
   </DTS:Executables>
   <DTS:PrecedenceConstraints>
-    <DTS:PrecedenceConstraint DTS:From="Package\Log Start" DTS:To="Package\Build Aggregations" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Build Aggregations" DTS:To="Package\Build Daily Snapshot" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Build Daily Snapshot" DTS:To="Package\Log Success" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Log to Build]" DTS:CreationName="" DTS:DTSID="{PC-0006-0001}" DTS:From="Package\Log Start" DTS:LogicalAnd="True" DTS:ObjectName="Log to Build" DTS:To="Package\Build Aggregations" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Build to Snapshot]" DTS:CreationName="" DTS:DTSID="{PC-0006-0002}" DTS:From="Package\Build Aggregations" DTS:LogicalAnd="True" DTS:ObjectName="Build to Snapshot" DTS:To="Package\Build Daily Snapshot" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Snapshot to Log]" DTS:CreationName="" DTS:DTSID="{PC-0006-0003}" DTS:From="Package\Build Daily Snapshot" DTS:LogicalAnd="True" DTS:ObjectName="Snapshot to Log" DTS:To="Package\Log Success" />
   </DTS:PrecedenceConstraints>
 </DTS:Executable>

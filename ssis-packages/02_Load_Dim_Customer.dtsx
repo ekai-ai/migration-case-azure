@@ -334,8 +334,8 @@ WHERE d1.IsCurrent = 1
     </DTS:Executable>
   </DTS:Executables>
   <DTS:PrecedenceConstraints>
-    <DTS:PrecedenceConstraint DTS:refId="PC[Log to DFT]" DTS:From="Package\Log Start" DTS:To="Package\Load Customer Dimension" DTS:ObjectName="Log to DFT" />
-    <DTS:PrecedenceConstraint DTS:refId="PC[DFT to Expire]" DTS:From="Package\Load Customer Dimension" DTS:To="Package\Expire Old Records" DTS:ObjectName="DFT to Expire" />
-    <DTS:PrecedenceConstraint DTS:refId="PC[Expire to Log]" DTS:From="Package\Expire Old Records" DTS:To="Package\Log Success" DTS:ObjectName="Expire to Log" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Log to DFT]" DTS:CreationName="" DTS:DTSID="{PC-0002-0001}" DTS:From="Package\Log Start" DTS:LogicalAnd="True" DTS:ObjectName="Log to DFT" DTS:To="Package\Load Customer Dimension" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[DFT to Expire]" DTS:CreationName="" DTS:DTSID="{PC-0002-0002}" DTS:From="Package\Load Customer Dimension" DTS:LogicalAnd="True" DTS:ObjectName="DFT to Expire" DTS:To="Package\Expire Old Records" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Expire to Log]" DTS:CreationName="" DTS:DTSID="{PC-0002-0003}" DTS:From="Package\Expire Old Records" DTS:LogicalAnd="True" DTS:ObjectName="Expire to Log" DTS:To="Package\Log Success" />
   </DTS:PrecedenceConstraints>
 </DTS:Executable>

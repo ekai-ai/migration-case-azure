@@ -178,9 +178,9 @@ WHERE (Month = 1 AND DayOfMonth = 1)     -- New Year
     </DTS:Executable>
   </DTS:Executables>
   <DTS:PrecedenceConstraints>
-    <DTS:PrecedenceConstraint DTS:refId="Package.PC[Log to Truncate]" DTS:From="Package\Log Start" DTS:To="Package\Truncate Dim_Date" DTS:ObjectName="Log to Truncate" />
-    <DTS:PrecedenceConstraint DTS:refId="Package.PC[Truncate to Generate]" DTS:From="Package\Truncate Dim_Date" DTS:To="Package\Generate Date Dimension" DTS:ObjectName="Truncate to Generate" />
-    <DTS:PrecedenceConstraint DTS:refId="Package.PC[Generate to Count]" DTS:From="Package\Generate Date Dimension" DTS:To="Package\Get Row Count" DTS:ObjectName="Generate to Count" />
-    <DTS:PrecedenceConstraint DTS:refId="Package.PC[Count to Log]" DTS:From="Package\Get Row Count" DTS:To="Package\Log Success" DTS:ObjectName="Count to Log" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Log to Truncate]" DTS:CreationName="" DTS:DTSID="{PC-0001-0001}" DTS:From="Package\Log Start" DTS:LogicalAnd="True" DTS:ObjectName="Log to Truncate" DTS:To="Package\Truncate Dim_Date" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Truncate to Generate]" DTS:CreationName="" DTS:DTSID="{PC-0001-0002}" DTS:From="Package\Truncate Dim_Date" DTS:LogicalAnd="True" DTS:ObjectName="Truncate to Generate" DTS:To="Package\Generate Date Dimension" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Generate to Count]" DTS:CreationName="" DTS:DTSID="{PC-0001-0003}" DTS:From="Package\Generate Date Dimension" DTS:LogicalAnd="True" DTS:ObjectName="Generate to Count" DTS:To="Package\Get Row Count" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Count to Log]" DTS:CreationName="" DTS:DTSID="{PC-0001-0004}" DTS:From="Package\Get Row Count" DTS:LogicalAnd="True" DTS:ObjectName="Count to Log" DTS:To="Package\Log Success" />
   </DTS:PrecedenceConstraints>
 </DTS:Executable>

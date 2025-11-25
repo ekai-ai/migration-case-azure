@@ -170,8 +170,8 @@ INNER JOIN Suppliers s ON p.SupplierID = s.SupplierID</property>
     </DTS:Executable>
   </DTS:Executables>
   <DTS:PrecedenceConstraints>
-    <DTS:PrecedenceConstraint DTS:From="Package\Log Start" DTS:To="Package\Truncate Dim_Product" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Truncate Dim_Product" DTS:To="Package\Load Product Dimension" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Load Product Dimension" DTS:To="Package\Log Success" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Log to Truncate]" DTS:CreationName="" DTS:DTSID="{PC-0003-0001}" DTS:From="Package\Log Start" DTS:LogicalAnd="True" DTS:ObjectName="Log to Truncate" DTS:To="Package\Truncate Dim_Product" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Truncate to Load]" DTS:CreationName="" DTS:DTSID="{PC-0003-0002}" DTS:From="Package\Truncate Dim_Product" DTS:LogicalAnd="True" DTS:ObjectName="Truncate to Load" DTS:To="Package\Load Product Dimension" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Load to Log]" DTS:CreationName="" DTS:DTSID="{PC-0003-0003}" DTS:From="Package\Load Product Dimension" DTS:LogicalAnd="True" DTS:ObjectName="Load to Log" DTS:To="Package\Log Success" />
   </DTS:PrecedenceConstraints>
 </DTS:Executable>

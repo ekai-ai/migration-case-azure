@@ -129,9 +129,9 @@ ORDER BY StartTime;
     </DTS:Executable>
   </DTS:Executables>
   <DTS:PrecedenceConstraints>
-    <DTS:PrecedenceConstraint DTS:From="Package\Initialize ETL Run" DTS:To="Package\Load Dimensions" DTS:ObjectName="Init to Dims" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Load Dimensions" DTS:To="Package\Load Fact Tables" DTS:ObjectName="Dims to Facts" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Load Fact Tables" DTS:To="Package\Build Aggregations" DTS:ObjectName="Facts to Aggs" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Build Aggregations" DTS:To="Package\Finalize ETL Run" DTS:ObjectName="Aggs to Final" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Init to Dims]" DTS:CreationName="" DTS:DTSID="{PC-0000-0001}" DTS:From="Package\Initialize ETL Run" DTS:LogicalAnd="True" DTS:ObjectName="Init to Dims" DTS:To="Package\Load Dimensions" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Dims to Facts]" DTS:CreationName="" DTS:DTSID="{PC-0000-0002}" DTS:From="Package\Load Dimensions" DTS:LogicalAnd="True" DTS:ObjectName="Dims to Facts" DTS:To="Package\Load Fact Tables" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Facts to Aggs]" DTS:CreationName="" DTS:DTSID="{PC-0000-0003}" DTS:From="Package\Load Fact Tables" DTS:LogicalAnd="True" DTS:ObjectName="Facts to Aggs" DTS:To="Package\Build Aggregations" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Aggs to Final]" DTS:CreationName="" DTS:DTSID="{PC-0000-0004}" DTS:From="Package\Build Aggregations" DTS:LogicalAnd="True" DTS:ObjectName="Aggs to Final" DTS:To="Package\Finalize ETL Run" />
   </DTS:PrecedenceConstraints>
 </DTS:Executable>

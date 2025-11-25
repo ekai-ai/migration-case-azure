@@ -291,10 +291,10 @@ WHEN NOT MATCHED THEN INSERT (TableName, ColumnName, LastValue, LastLoadDate) VA
     </DTS:Executable>
   </DTS:Executables>
   <DTS:PrecedenceConstraints>
-    <DTS:PrecedenceConstraint DTS:From="Package\Log Start" DTS:To="Package\Get Last Load Date" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Get Last Load Date" DTS:To="Package\Truncate For Full Load" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Truncate For Full Load" DTS:To="Package\Load Fact Sales" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Load Fact Sales" DTS:To="Package\Update Watermark" />
-    <DTS:PrecedenceConstraint DTS:From="Package\Update Watermark" DTS:To="Package\Log Success" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Log to GetDate]" DTS:CreationName="" DTS:DTSID="{PC-0005-0001}" DTS:From="Package\Log Start" DTS:LogicalAnd="True" DTS:ObjectName="Log to GetDate" DTS:To="Package\Get Last Load Date" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[GetDate to Truncate]" DTS:CreationName="" DTS:DTSID="{PC-0005-0002}" DTS:From="Package\Get Last Load Date" DTS:LogicalAnd="True" DTS:ObjectName="GetDate to Truncate" DTS:To="Package\Truncate For Full Load" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Truncate to Load]" DTS:CreationName="" DTS:DTSID="{PC-0005-0003}" DTS:From="Package\Truncate For Full Load" DTS:LogicalAnd="True" DTS:ObjectName="Truncate to Load" DTS:To="Package\Load Fact Sales" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Load to Watermark]" DTS:CreationName="" DTS:DTSID="{PC-0005-0004}" DTS:From="Package\Load Fact Sales" DTS:LogicalAnd="True" DTS:ObjectName="Load to Watermark" DTS:To="Package\Update Watermark" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Watermark to Log]" DTS:CreationName="" DTS:DTSID="{PC-0005-0005}" DTS:From="Package\Update Watermark" DTS:LogicalAnd="True" DTS:ObjectName="Watermark to Log" DTS:To="Package\Log Success" />
   </DTS:PrecedenceConstraints>
 </DTS:Executable>
