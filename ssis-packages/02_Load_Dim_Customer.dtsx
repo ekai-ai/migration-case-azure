@@ -1,38 +1,15 @@
 <?xml version="1.0"?>
 <DTS:Executable xmlns:DTS="www.microsoft.com/SqlServer/Dts"
   DTS:refId="Package"
-  DTS:CreationDate="11/25/2025 12:00:00 PM"
   DTS:CreationName="Microsoft.Package"
-  DTS:CreatorComputerName="ekai-magent-vm"
-  DTS:CreatorName="ekaiadmin"
-  DTS:DTSID="{PKG02-DIM-CUST-0001-000000000002}"
-  DTS:ExecutableType="Microsoft.Package"
-  DTS:LocaleID="1033"
+  DTS:DTSID="{PKG02-DIM-CUST-0001}"
   DTS:ObjectName="02_Load_Dim_Customer"
-  DTS:PackageType="5"
-  DTS:VersionBuild="1">
+  DTS:PackageType="5">
   <DTS:Property DTS:Name="PackageFormatVersion">8</DTS:Property>
   <DTS:ConnectionManagers>
-    <DTS:ConnectionManager
-      DTS:refId="Package.ConnectionManagers[NorthwindSource]"
-      DTS:CreationName="OLEDB"
-      DTS:DTSID="{CONN-SRC-0002}"
-      DTS:ObjectName="NorthwindSource">
+    <DTS:ConnectionManager DTS:refId="Package.ConnectionManagers[NorthwindDW]" DTS:CreationName="OLEDB" DTS:DTSID="{CONN-DW-0002}" DTS:ObjectName="NorthwindDW">
       <DTS:ObjectData>
-        <DTS:ConnectionManager
-          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=MSOLEDBSQL;Integrated Security=SSPI;">
-        </DTS:ConnectionManager>
-      </DTS:ObjectData>
-    </DTS:ConnectionManager>
-    <DTS:ConnectionManager
-      DTS:refId="Package.ConnectionManagers[NorthwindDW]"
-      DTS:CreationName="OLEDB"
-      DTS:DTSID="{CONN-DW-0002}"
-      DTS:ObjectName="NorthwindDW">
-      <DTS:ObjectData>
-        <DTS:ConnectionManager
-          DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=MSOLEDBSQL;Integrated Security=SSPI;">
-        </DTS:ConnectionManager>
+        <DTS:ConnectionManager DTS:ConnectionString="Data Source=localhost;Initial Catalog=Northwind;Provider=MSOLEDBSQL;Integrated Security=SSPI;" />
       </DTS:ObjectData>
     </DTS:ConnectionManager>
   </DTS:ConnectionManagers>
@@ -40,44 +17,34 @@
     <DTS:Variable DTS:CreationName="" DTS:DTSID="{VAR-CUS-001}" DTS:Namespace="User" DTS:ObjectName="RowsInserted">
       <DTS:VariableValue DTS:DataType="3">0</DTS:VariableValue>
     </DTS:Variable>
-    <DTS:Variable DTS:CreationName="" DTS:DTSID="{VAR-CUS-002}" DTS:Namespace="User" DTS:ObjectName="RowsUpdated">
-      <DTS:VariableValue DTS:DataType="3">0</DTS:VariableValue>
-    </DTS:Variable>
-    <DTS:Variable DTS:CreationName="" DTS:DTSID="{VAR-CUS-003}" DTS:Namespace="User" DTS:ObjectName="CurrentDate">
-      <DTS:VariableValue DTS:DataType="7">1998-05-06T00:00:00</DTS:VariableValue>
-    </DTS:Variable>
   </DTS:Variables>
   <DTS:Executables>
-    <DTS:Executable
-      DTS:refId="Package\Log Start"
-      DTS:CreationName="Microsoft.ExecuteSQLTask"
-      DTS:DTSID="{EXEC-LOG-CUS1}"
-      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
-      DTS:ObjectName="Log Start">
+    <DTS:Executable DTS:refId="Package\Log Start" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-CUS1}" DTS:ExecutableType="Microsoft.ExecuteSQLTask" DTS:ObjectName="Log Start">
       <DTS:ObjectData>
-        <SQLTask:SqlTaskData
-          SQLTask:Connection="{CONN-DW-0002}"
-          SQLTask:SqlStatementSource="INSERT INTO dbo.ETL_Log (PackageName, TaskName, StartTime, Status) VALUES ('02_Load_Dim_Customer', 'SCD Type 2 Load', GETDATE(), 'Running')"
-          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0002}" SQLTask:SqlStatementSource="INSERT INTO dbo.ETL_Log (PackageName, TaskName, StartTime, Status) VALUES ('02_Load_Dim_Customer', 'Full Load', GETDATE(), 'Running')" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
       </DTS:ObjectData>
     </DTS:Executable>
-    <DTS:Executable
-      DTS:refId="Package\Load Customer Dimension"
-      DTS:CreationName="Microsoft.Pipeline"
-      DTS:Description="Load customers with SCD Type 2 handling"
-      DTS:DTSID="{DFT-CUS-0001}"
-      DTS:ExecutableType="Microsoft.Pipeline"
-      DTS:ObjectName="Load Customer Dimension">
+    <DTS:Executable DTS:refId="Package\Load Customer Dimension" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOAD-CUS}" DTS:ExecutableType="Microsoft.ExecuteSQLTask" DTS:ObjectName="Load Customer Dimension" DTS:Description="Load customers with derived attributes using SCD Type 2 logic">
       <DTS:ObjectData>
-        <pipeline version="1">
-          <components>
-            <component
-              refId="Package\Load Customer Dimension\Extract Customers"
-              componentClassID="Microsoft.OLEDBSource"
-              name="Extract Customers"
-              version="7">
-              <properties>
-                <property name="SqlCommand" dataType="System.String">SELECT
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0002}" SQLTask:SqlStatementSource="
+-- Expire changed records (SCD Type 2)
+UPDATE dc SET
+    dc.ExpirationDate = CAST(GETDATE() AS DATE),
+    dc.IsCurrent = 0
+FROM dbo.Dim_Customer dc
+INNER JOIN Customers c ON dc.CustomerID = c.CustomerID
+WHERE dc.IsCurrent = 1
+AND (dc.CompanyName != c.CompanyName OR dc.ContactName != ISNULL(c.ContactName,'')
+     OR dc.Address != ISNULL(c.Address,'') OR dc.City != ISNULL(c.City,''));
+
+-- Insert new and changed customers
+INSERT INTO dbo.Dim_Customer (
+    CustomerID, CompanyName, ContactName, ContactTitle, Address, City, Region,
+    PostalCode, Country, Phone, Fax, CustomerSegment, GeographyRegion,
+    FirstOrderDate, LastOrderDate, TotalOrders, TotalRevenue, AvgOrderValue,
+    CustomerLifetimeValue, DaysSinceLastOrder, EffectiveDate, IsCurrent
+)
+SELECT
     c.CustomerID,
     c.CompanyName,
     c.ContactName,
@@ -89,25 +56,27 @@
     c.Country,
     c.Phone,
     c.Fax,
-    -- Derived: Customer Segment based on order history
+    -- CustomerSegment based on order history
     CASE
-        WHEN os.TotalRevenue >= 50000 THEN 'High Value'
-        WHEN os.TotalRevenue >= 10000 THEN 'Medium Value'
-        ELSE 'Low Value'
+        WHEN ISNULL(stats.TotalRevenue, 0) > 10000 THEN 'High Value'
+        WHEN ISNULL(stats.TotalRevenue, 0) > 5000 THEN 'Medium'
+        ELSE 'Low'
     END AS CustomerSegment,
-    -- Derived: Geography Region
+    -- GeographyRegion
     CASE
-        WHEN c.Country IN ('USA', 'Canada', 'Mexico', 'Brazil', 'Argentina', 'Venezuela') THEN 'Americas'
-        WHEN c.Country IN ('UK', 'Germany', 'France', 'Spain', 'Italy', 'Belgium', 'Switzerland', 'Austria', 'Sweden', 'Finland', 'Denmark', 'Norway', 'Ireland', 'Portugal', 'Poland') THEN 'Europe'
+        WHEN c.Country IN ('USA', 'Canada', 'Mexico', 'Brazil', 'Venezuela', 'Argentina') THEN 'Americas'
+        WHEN c.Country IN ('UK', 'Germany', 'France', 'Spain', 'Italy', 'Sweden', 'Finland', 'Norway', 'Denmark', 'Belgium', 'Switzerland', 'Austria', 'Portugal', 'Ireland', 'Poland') THEN 'Europe'
         ELSE 'Other'
     END AS GeographyRegion,
-    os.FirstOrderDate,
-    os.LastOrderDate,
-    ISNULL(os.TotalOrders, 0) AS TotalOrders,
-    ISNULL(os.TotalRevenue, 0) AS TotalRevenue,
-    ISNULL(os.AvgOrderValue, 0) AS AvgOrderValue,
-    ISNULL(os.TotalRevenue, 0) * 1.2 AS CustomerLifetimeValue,  -- Simple CLV estimate
-    DATEDIFF(DAY, os.LastOrderDate, GETDATE()) AS DaysSinceLastOrder
+    stats.FirstOrderDate,
+    stats.LastOrderDate,
+    ISNULL(stats.TotalOrders, 0) AS TotalOrders,
+    ISNULL(stats.TotalRevenue, 0) AS TotalRevenue,
+    ISNULL(stats.AvgOrderValue, 0) AS AvgOrderValue,
+    ISNULL(stats.TotalRevenue, 0) * 1.5 AS CustomerLifetimeValue,
+    DATEDIFF(DAY, stats.LastOrderDate, GETDATE()) AS DaysSinceLastOrder,
+    CAST(GETDATE() AS DATE) AS EffectiveDate,
+    1 AS IsCurrent
 FROM Customers c
 LEFT JOIN (
     SELECT
@@ -120,222 +89,32 @@ LEFT JOIN (
     FROM Orders o
     INNER JOIN [Order Details] od ON o.OrderID = od.OrderID
     GROUP BY o.CustomerID
-) os ON c.CustomerID = os.CustomerID</property>
-                <property name="AccessMode" dataType="System.Int32">2</property>
-              </properties>
-              <connections>
-                <connection refId="Package\Load Customer Dimension\Extract Customers.Connections[OleDbConnection]"
-                  connectionManagerID="Package.ConnectionManagers[NorthwindSource]"
-                  name="OleDbConnection" />
-              </connections>
-              <outputs>
-                <output refId="Package\Load Customer Dimension\Extract Customers.Outputs[OLE DB Source Output]" name="OLE DB Source Output">
-                  <outputColumns>
-                    <outputColumn refId="col_CustomerID" dataType="wstr" length="5" name="CustomerID" />
-                    <outputColumn refId="col_CompanyName" dataType="wstr" length="40" name="CompanyName" />
-                    <outputColumn refId="col_ContactName" dataType="wstr" length="30" name="ContactName" />
-                    <outputColumn refId="col_ContactTitle" dataType="wstr" length="30" name="ContactTitle" />
-                    <outputColumn refId="col_Address" dataType="wstr" length="60" name="Address" />
-                    <outputColumn refId="col_City" dataType="wstr" length="15" name="City" />
-                    <outputColumn refId="col_Region" dataType="wstr" length="15" name="Region" />
-                    <outputColumn refId="col_PostalCode" dataType="wstr" length="10" name="PostalCode" />
-                    <outputColumn refId="col_Country" dataType="wstr" length="15" name="Country" />
-                    <outputColumn refId="col_Phone" dataType="wstr" length="24" name="Phone" />
-                    <outputColumn refId="col_Fax" dataType="wstr" length="24" name="Fax" />
-                    <outputColumn refId="col_CustomerSegment" dataType="wstr" length="20" name="CustomerSegment" />
-                    <outputColumn refId="col_GeographyRegion" dataType="wstr" length="20" name="GeographyRegion" />
-                    <outputColumn refId="col_FirstOrderDate" dataType="dbDate" name="FirstOrderDate" />
-                    <outputColumn refId="col_LastOrderDate" dataType="dbDate" name="LastOrderDate" />
-                    <outputColumn refId="col_TotalOrders" dataType="i4" name="TotalOrders" />
-                    <outputColumn refId="col_TotalRevenue" dataType="cy" name="TotalRevenue" />
-                    <outputColumn refId="col_AvgOrderValue" dataType="cy" name="AvgOrderValue" />
-                    <outputColumn refId="col_CustomerLifetimeValue" dataType="cy" name="CustomerLifetimeValue" />
-                    <outputColumn refId="col_DaysSinceLastOrder" dataType="i4" name="DaysSinceLastOrder" />
-                  </outputColumns>
-                </output>
-              </outputs>
-            </component>
-            <component
-              refId="Package\Load Customer Dimension\SCD Slowly Changing Dimension"
-              componentClassID="Microsoft.SCD"
-              description="Slowly Changing Dimension transformation for SCD Type 2"
-              name="SCD Slowly Changing Dimension"
-              usesDispositions="true"
-              version="5">
-              <properties>
-                <property name="CurrentRowWhere" dataType="System.String">IsCurrent = 1</property>
-                <property name="InferredMemberIndicatorName" dataType="System.String"></property>
-                <property name="InferredMemberIndicator" dataType="System.Null"></property>
-                <property name="SqlCommand" dataType="System.String">SELECT * FROM Dim_Customer WHERE IsCurrent = 1</property>
-              </properties>
-              <inputs>
-                <input refId="Package\Load Customer Dimension\SCD Slowly Changing Dimension.Inputs[SCD Input]" name="SCD Input">
-                  <inputColumns>
-                    <inputColumn refId="input_CustomerID" cachedDataType="wstr" cachedLength="5" cachedName="CustomerID" lineageId="col_CustomerID">
-                      <properties>
-                        <property name="ColumnType" dataType="System.Int32">1</property>
-                      </properties>
-                    </inputColumn>
-                    <inputColumn refId="input_CompanyName" cachedDataType="wstr" cachedLength="40" cachedName="CompanyName" lineageId="col_CompanyName">
-                      <properties>
-                        <property name="ColumnType" dataType="System.Int32">2</property>
-                      </properties>
-                    </inputColumn>
-                    <inputColumn refId="input_ContactName" cachedDataType="wstr" cachedLength="30" cachedName="ContactName" lineageId="col_ContactName">
-                      <properties>
-                        <property name="ColumnType" dataType="System.Int32">3</property>
-                      </properties>
-                    </inputColumn>
-                    <inputColumn refId="input_Address" cachedDataType="wstr" cachedLength="60" cachedName="Address" lineageId="col_Address">
-                      <properties>
-                        <property name="ColumnType" dataType="System.Int32">3</property>
-                      </properties>
-                    </inputColumn>
-                    <inputColumn refId="input_CustomerSegment" cachedDataType="wstr" cachedLength="20" cachedName="CustomerSegment" lineageId="col_CustomerSegment">
-                      <properties>
-                        <property name="ColumnType" dataType="System.Int32">2</property>
-                      </properties>
-                    </inputColumn>
-                  </inputColumns>
-                </input>
-              </inputs>
-              <outputs>
-                <output refId="Package\Load Customer Dimension\SCD Slowly Changing Dimension.Outputs[New Output]" name="New Output" />
-                <output refId="Package\Load Customer Dimension\SCD Slowly Changing Dimension.Outputs[Historical Attribute Inserts Output]" name="Historical Attribute Inserts Output" />
-                <output refId="Package\Load Customer Dimension\SCD Slowly Changing Dimension.Outputs[Changing Attribute Updates Output]" name="Changing Attribute Updates Output" />
-                <output refId="Package\Load Customer Dimension\SCD Slowly Changing Dimension.Outputs[Unchanged Output]" name="Unchanged Output" />
-              </outputs>
-            </component>
-            <component
-              refId="Package\Load Customer Dimension\Derive SCD Fields"
-              componentClassID="Microsoft.DerivedColumn"
-              name="Derive SCD Fields">
-              <outputs>
-                <output refId="Package\Load Customer Dimension\Derive SCD Fields.Outputs[Derived Column Output]" name="Derived Column Output">
-                  <outputColumns>
-                    <outputColumn refId="out_EffectiveDate" dataType="dbDate" name="EffectiveDate">
-                      <properties>
-                        <property name="Expression" dataType="System.String">(DT_DBDATE)GETDATE()</property>
-                      </properties>
-                    </outputColumn>
-                    <outputColumn refId="out_IsCurrent" dataType="bool" name="IsCurrent">
-                      <properties>
-                        <property name="Expression" dataType="System.String">TRUE</property>
-                      </properties>
-                    </outputColumn>
-                    <outputColumn refId="out_LoadDate" dataType="dbTimeStamp" name="LoadDate">
-                      <properties>
-                        <property name="Expression" dataType="System.String">GETDATE()</property>
-                      </properties>
-                    </outputColumn>
-                  </outputColumns>
-                </output>
-              </outputs>
-            </component>
-            <component
-              refId="Package\Load Customer Dimension\Insert New Customers"
-              componentClassID="Microsoft.OLEDBDestination"
-              name="Insert New Customers"
-              version="4">
-              <properties>
-                <property name="OpenRowset" dataType="System.String">[dbo].[Dim_Customer]</property>
-                <property name="AccessMode" dataType="System.Int32">3</property>
-              </properties>
-              <connections>
-                <connection refId="Package\Load Customer Dimension\Insert New Customers.Connections[OleDbConnection]"
-                  connectionManagerID="Package.ConnectionManagers[NorthwindDW]"
-                  name="OleDbConnection" />
-              </connections>
-            </component>
-            <component
-              refId="Package\Load Customer Dimension\Insert Historical Records"
-              componentClassID="Microsoft.OLEDBDestination"
-              name="Insert Historical Records"
-              description="Insert new records for historical changes (SCD Type 2)"
-              version="4">
-              <properties>
-                <property name="OpenRowset" dataType="System.String">[dbo].[Dim_Customer]</property>
-                <property name="AccessMode" dataType="System.Int32">3</property>
-              </properties>
-              <connections>
-                <connection refId="Package\Load Customer Dimension\Insert Historical Records.Connections[OleDbConnection]"
-                  connectionManagerID="Package.ConnectionManagers[NorthwindDW]"
-                  name="OleDbConnection" />
-              </connections>
-            </component>
-            <component
-              refId="Package\Load Customer Dimension\Row Count New"
-              componentClassID="Microsoft.RowCount"
-              name="Row Count New">
-              <properties>
-                <property name="VariableName" dataType="System.String">User::RowsInserted</property>
-              </properties>
-            </component>
-            <component
-              refId="Package\Load Customer Dimension\Row Count Updated"
-              componentClassID="Microsoft.RowCount"
-              name="Row Count Updated">
-              <properties>
-                <property name="VariableName" dataType="System.String">User::RowsUpdated</property>
-              </properties>
-            </component>
-          </components>
-          <paths>
-            <path refId="Path[Source to SCD]" startId="Package\Load Customer Dimension\Extract Customers.Outputs[OLE DB Source Output]" endId="Package\Load Customer Dimension\SCD Slowly Changing Dimension.Inputs[SCD Input]" name="Source to SCD" />
-            <path refId="Path[SCD New to Derive]" startId="Package\Load Customer Dimension\SCD Slowly Changing Dimension.Outputs[New Output]" endId="Package\Load Customer Dimension\Derive SCD Fields.Inputs[Derived Column Input]" name="SCD New to Derive" />
-            <path refId="Path[Derive to Row Count New]" startId="Package\Load Customer Dimension\Derive SCD Fields.Outputs[Derived Column Output]" endId="Package\Load Customer Dimension\Row Count New.Inputs[Row Count Input 1]" name="Derive to Row Count New" />
-            <path refId="Path[Row Count New to Insert]" startId="Package\Load Customer Dimension\Row Count New.Outputs[Row Count Output 1]" endId="Package\Load Customer Dimension\Insert New Customers.Inputs[OLE DB Destination Input]" name="Row Count New to Insert" />
-            <path refId="Path[SCD Historical to Row Count]" startId="Package\Load Customer Dimension\SCD Slowly Changing Dimension.Outputs[Historical Attribute Inserts Output]" endId="Package\Load Customer Dimension\Row Count Updated.Inputs[Row Count Input 1]" name="SCD Historical to Row Count" />
-            <path refId="Path[Row Count Updated to Insert Historical]" startId="Package\Load Customer Dimension\Row Count Updated.Outputs[Row Count Output 1]" endId="Package\Load Customer Dimension\Insert Historical Records.Inputs[OLE DB Destination Input]" name="Row Count Updated to Insert Historical" />
-          </paths>
-        </pipeline>
+) stats ON c.CustomerID = stats.CustomerID
+WHERE NOT EXISTS (
+    SELECT 1 FROM dbo.Dim_Customer dc
+    WHERE dc.CustomerID = c.CustomerID AND dc.IsCurrent = 1
+);
+" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
       </DTS:ObjectData>
     </DTS:Executable>
-    <DTS:Executable
-      DTS:refId="Package\Expire Old Records"
-      DTS:CreationName="Microsoft.ExecuteSQLTask"
-      DTS:Description="Expire old dimension records for SCD Type 2"
-      DTS:DTSID="{EXEC-EXP-0001}"
-      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
-      DTS:ObjectName="Expire Old Records">
+    <DTS:Executable DTS:refId="Package\Get Row Count" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-CNT-CUS}" DTS:ExecutableType="Microsoft.ExecuteSQLTask" DTS:ObjectName="Get Row Count">
       <DTS:ObjectData>
-        <SQLTask:SqlTaskData
-          SQLTask:Connection="{CONN-DW-0002}"
-          SQLTask:SqlStatementSource="
--- Expire old records where a newer record exists
-UPDATE d1
-SET d1.IsCurrent = 0,
-    d1.ExpirationDate = DATEADD(DAY, -1, d2.EffectiveDate)
-FROM dbo.Dim_Customer d1
-INNER JOIN dbo.Dim_Customer d2
-    ON d1.CustomerID = d2.CustomerID
-    AND d1.CustomerKey &lt; d2.CustomerKey
-WHERE d1.IsCurrent = 1
-  AND d2.IsCurrent = 1;
-"
-          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0002}" SQLTask:SqlStatementSource="SELECT COUNT(*) FROM dbo.Dim_Customer WHERE IsCurrent = 1" SQLTask:ResultType="ResultSetType_SingleRow" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+          <SQLTask:ResultBinding SQLTask:ResultName="0" SQLTask:DtsVariableName="User::RowsInserted" />
+        </SQLTask:SqlTaskData>
       </DTS:ObjectData>
     </DTS:Executable>
-    <DTS:Executable
-      DTS:refId="Package\Log Success"
-      DTS:CreationName="Microsoft.ExecuteSQLTask"
-      DTS:DTSID="{EXEC-LOG-CUS2}"
-      DTS:ExecutableType="Microsoft.ExecuteSQLTask"
-      DTS:ObjectName="Log Success">
+    <DTS:Executable DTS:refId="Package\Log Success" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-CUS2}" DTS:ExecutableType="Microsoft.ExecuteSQLTask" DTS:ObjectName="Log Success">
       <DTS:ObjectData>
-        <SQLTask:SqlTaskData
-          SQLTask:Connection="{CONN-DW-0002}"
-          SQLTask:SqlStatementSource="UPDATE dbo.ETL_Log SET EndTime = GETDATE(), Status = 'Succeeded', RowsInserted = ?, RowsUpdated = ? WHERE PackageName = '02_Load_Dim_Customer' AND Status = 'Running'"
-          xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0002}" SQLTask:SqlStatementSource="UPDATE dbo.ETL_Log SET EndTime = GETDATE(), Status = 'Succeeded', RowsInserted = ? WHERE PackageName = '02_Load_Dim_Customer' AND Status = 'Running'" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask">
           <SQLTask:ParameterBinding SQLTask:ParameterName="0" SQLTask:DtsVariableName="User::RowsInserted" SQLTask:ParameterDirection="Input" SQLTask:DataType="3" />
-          <SQLTask:ParameterBinding SQLTask:ParameterName="1" SQLTask:DtsVariableName="User::RowsUpdated" SQLTask:ParameterDirection="Input" SQLTask:DataType="3" />
         </SQLTask:SqlTaskData>
       </DTS:ObjectData>
     </DTS:Executable>
   </DTS:Executables>
   <DTS:PrecedenceConstraints>
-    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Log to DFT]" DTS:CreationName="" DTS:DTSID="{PC-0002-0001}" DTS:From="Package\Log Start" DTS:LogicalAnd="True" DTS:ObjectName="Log to DFT" DTS:To="Package\Load Customer Dimension" />
-    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[DFT to Expire]" DTS:CreationName="" DTS:DTSID="{PC-0002-0002}" DTS:From="Package\Load Customer Dimension" DTS:LogicalAnd="True" DTS:ObjectName="DFT to Expire" DTS:To="Package\Expire Old Records" />
-    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Expire to Log]" DTS:CreationName="" DTS:DTSID="{PC-0002-0003}" DTS:From="Package\Expire Old Records" DTS:LogicalAnd="True" DTS:ObjectName="Expire to Log" DTS:To="Package\Log Success" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Log to Load]" DTS:CreationName="" DTS:DTSID="{PC-0002-0001}" DTS:From="Package\Log Start" DTS:LogicalAnd="True" DTS:ObjectName="Log to Load" DTS:To="Package\Load Customer Dimension" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Load to Count]" DTS:CreationName="" DTS:DTSID="{PC-0002-0002}" DTS:From="Package\Load Customer Dimension" DTS:LogicalAnd="True" DTS:ObjectName="Load to Count" DTS:To="Package\Get Row Count" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Count to Log]" DTS:CreationName="" DTS:DTSID="{PC-0002-0003}" DTS:From="Package\Get Row Count" DTS:LogicalAnd="True" DTS:ObjectName="Count to Log" DTS:To="Package\Log Success" />
   </DTS:PrecedenceConstraints>
 </DTS:Executable>

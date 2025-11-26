@@ -13,228 +13,121 @@
       </DTS:ObjectData>
     </DTS:ConnectionManager>
   </DTS:ConnectionManagers>
-  <DTS:Variables>
-    <DTS:Variable DTS:DTSID="{VAR-AGG-001}" DTS:Namespace="User" DTS:ObjectName="ReportYear"><DTS:VariableValue DTS:DataType="3">1997</DTS:VariableValue></DTS:Variable>
-  </DTS:Variables>
+  <DTS:Variables />
   <DTS:Executables>
-    <DTS:Executable DTS:refId="Package\Log Start" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-AGG1}" DTS:ObjectName="Log Start">
+    <DTS:Executable DTS:refId="Package\Log Start" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-AGG1}" DTS:ExecutableType="Microsoft.ExecuteSQLTask" DTS:ObjectName="Log Start">
       <DTS:ObjectData>
-        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0006}" SQLTask:SqlStatementSource="INSERT INTO dbo.ETL_Log (PackageName, TaskName, StartTime, Status) VALUES ('06_Build_Aggregations', 'Build All Aggregations', GETDATE(), 'Running')" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0006}" SQLTask:SqlStatementSource="INSERT INTO dbo.ETL_Log (PackageName, TaskName, StartTime, Status) VALUES ('06_Build_Aggregations', 'Build All', GETDATE(), 'Running')" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
       </DTS:ObjectData>
     </DTS:Executable>
-    <!-- PARALLEL CONTAINER: Build aggregations in parallel for performance -->
-    <DTS:Executable DTS:refId="Package\Build Aggregations" DTS:CreationName="STOCK:SEQUENCE" DTS:Description="Parallel execution container" DTS:DTSID="{SEQ-AGG-0001}" DTS:ObjectName="Build Aggregations">
-      <DTS:Executables>
-        <DTS:Executable DTS:refId="Package\Build Aggregations\Build Sales By Category" DTS:CreationName="Microsoft.Pipeline" DTS:DTSID="{DFT-AGG-CAT}" DTS:ObjectName="Build Sales By Category">
-          <DTS:ObjectData>
-            <pipeline version="1">
-              <components>
-                <component refId="Package\Build Aggregations\Build Sales By Category\Category Aggregation Query" componentClassID="Microsoft.OLEDBSource" name="Category Aggregation Query" version="7">
-                  <properties>
-                    <property name="SqlCommand" dataType="System.String">WITH CategorySales AS (
-    SELECT
-        dd.Year,
-        dd.Quarter,
-        dd.Month,
-        dp.CategoryID,
-        dp.CategoryName,
-        SUM(fs.Quantity) AS TotalQuantity,
-        SUM(fs.GrossAmount) AS TotalGrossAmount,
-        SUM(fs.DiscountAmount) AS TotalDiscountAmount,
-        SUM(fs.NetAmount) AS TotalNetAmount,
-        COUNT(DISTINCT fs.OrderID) AS OrderCount,
-        AVG(fs.UnitPrice) AS AvgUnitPrice,
-        AVG(fs.Discount) AS AvgDiscount
-    FROM dbo.Fact_Sales fs
-    INNER JOIN dbo.Dim_Date dd ON fs.DateKey = dd.DateKey
-    INNER JOIN dbo.Dim_Product dp ON fs.ProductKey = dp.ProductKey
-    WHERE dd.Year = ?
-    GROUP BY dd.Year, dd.Quarter, dd.Month, dp.CategoryID, dp.CategoryName
-)
-SELECT
-    cs.*,
-    RANK() OVER (PARTITION BY Year, Quarter, Month ORDER BY TotalNetAmount DESC) AS CategoryRankByRevenue,
-    RANK() OVER (PARTITION BY Year, Quarter, Month ORDER BY TotalQuantity DESC) AS CategoryRankByQuantity,
-    GETDATE() AS LoadDate
-FROM CategorySales cs
-ORDER BY Year, Quarter, Month, CategoryRankByRevenue</property>
-                    <property name="AccessMode" dataType="System.Int32">2</property>
-                  </properties>
-                  <connections>
-                    <connection connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
-                  </connections>
-                </component>
-                <component refId="Package\Build Aggregations\Build Sales By Category\Insert Category Agg" componentClassID="Microsoft.OLEDBDestination" name="Insert Category Agg" version="4">
-                  <properties>
-                    <property name="OpenRowset" dataType="System.String">[dbo].[Agg_SalesByCategory]</property>
-                    <property name="AccessMode" dataType="System.Int32">3</property>
-                  </properties>
-                  <connections>
-                    <connection connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
-                  </connections>
-                </component>
-              </components>
-              <paths>
-                <path startId="Package\Build Aggregations\Build Sales By Category\Category Aggregation Query.Outputs[OLE DB Source Output]" endId="Package\Build Aggregations\Build Sales By Category\Insert Category Agg.Inputs[OLE DB Destination Input]" />
-              </paths>
-            </pipeline>
-          </DTS:ObjectData>
-        </DTS:Executable>
-        <DTS:Executable DTS:refId="Package\Build Aggregations\Build Sales By Customer" DTS:CreationName="Microsoft.Pipeline" DTS:DTSID="{DFT-AGG-CUS}" DTS:ObjectName="Build Sales By Customer">
-          <DTS:ObjectData>
-            <pipeline version="1">
-              <components>
-                <component refId="Package\Build Aggregations\Build Sales By Customer\Customer Aggregation Query" componentClassID="Microsoft.OLEDBSource" name="Customer Aggregation Query" version="7">
-                  <properties>
-                    <property name="SqlCommand" dataType="System.String">WITH CustomerSales AS (
-    SELECT
-        dd.Year,
-        dc.CustomerKey,
-        dc.CustomerID,
-        dc.CompanyName,
-        dc.Country,
-        COUNT(DISTINCT fs.OrderID) AS TotalOrders,
-        SUM(fs.Quantity) AS TotalQuantity,
-        SUM(fs.NetAmount) AS TotalNetAmount,
-        SUM(fs.FreightAllocation) AS TotalFreight,
-        AVG(fs.NetAmount) AS AvgOrderValue,
-        AVG(CAST(fs.DaysToShip AS DECIMAL(10,2))) AS AvgDaysToShip,
-        COUNT(DISTINCT fs.ProductKey) AS UniqueProductsOrdered,
-        COUNT(DISTINCT dp.CategoryID) AS UniqueCategoriesOrdered
-    FROM dbo.Fact_Sales fs
-    INNER JOIN dbo.Dim_Date dd ON fs.DateKey = dd.DateKey
-    INNER JOIN dbo.Dim_Customer dc ON fs.CustomerKey = dc.CustomerKey
-    INNER JOIN dbo.Dim_Product dp ON fs.ProductKey = dp.ProductKey
-    WHERE dd.Year = ?
-    GROUP BY dd.Year, dc.CustomerKey, dc.CustomerID, dc.CompanyName, dc.Country
-)
-SELECT
-    cs.*,
-    RANK() OVER (ORDER BY TotalNetAmount DESC) AS CustomerRankByRevenue,
-    RANK() OVER (ORDER BY TotalOrders DESC) AS CustomerRankByOrders,
-    GETDATE() AS LoadDate
-FROM CustomerSales cs
-ORDER BY CustomerRankByRevenue</property>
-                    <property name="AccessMode" dataType="System.Int32">2</property>
-                  </properties>
-                  <connections>
-                    <connection connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
-                  </connections>
-                </component>
-                <component refId="Package\Build Aggregations\Build Sales By Customer\Insert Customer Agg" componentClassID="Microsoft.OLEDBDestination" name="Insert Customer Agg" version="4">
-                  <properties>
-                    <property name="OpenRowset" dataType="System.String">[dbo].[Agg_SalesByCustomer]</property>
-                    <property name="AccessMode" dataType="System.Int32">3</property>
-                  </properties>
-                  <connections>
-                    <connection connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
-                  </connections>
-                </component>
-              </components>
-              <paths>
-                <path startId="Package\Build Aggregations\Build Sales By Customer\Customer Aggregation Query.Outputs[OLE DB Source Output]" endId="Package\Build Aggregations\Build Sales By Customer\Insert Customer Agg.Inputs[OLE DB Destination Input]" />
-              </paths>
-            </pipeline>
-          </DTS:ObjectData>
-        </DTS:Executable>
-        <DTS:Executable DTS:refId="Package\Build Aggregations\Build Employee Performance" DTS:CreationName="Microsoft.Pipeline" DTS:DTSID="{DFT-AGG-EMP}" DTS:ObjectName="Build Employee Performance">
-          <DTS:ObjectData>
-            <pipeline version="1">
-              <components>
-                <component refId="Package\Build Aggregations\Build Employee Performance\Employee Aggregation Query" componentClassID="Microsoft.OLEDBSource" name="Employee Aggregation Query" version="7">
-                  <properties>
-                    <property name="SqlCommand" dataType="System.String">WITH EmployeeSales AS (
-    SELECT
-        dd.Year,
-        dd.Quarter,
-        de.EmployeeKey,
-        de.EmployeeID,
-        de.FullName,
-        de.Title,
-        COUNT(DISTINCT fs.OrderID) AS TotalOrders,
-        COUNT(DISTINCT fs.CustomerKey) AS TotalCustomers,
-        SUM(fs.NetAmount) AS TotalNetAmount,
-        SUM(fs.FreightAllocation) AS TotalFreight,
-        AVG(fs.NetAmount) AS AvgOrderValue,
-        SUM(CASE WHEN fs.IsLateShipment = 1 THEN 1 ELSE 0 END) AS LateShipmentCount,
-        CAST(100.0 * SUM(CASE WHEN fs.IsLateShipment = 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS DECIMAL(5,2)) AS OnTimeDeliveryPct
-    FROM dbo.Fact_Sales fs
-    INNER JOIN dbo.Dim_Date dd ON fs.DateKey = dd.DateKey
-    INNER JOIN dbo.Dim_Employee de ON fs.EmployeeKey = de.EmployeeKey
-    WHERE dd.Year = ?
-    GROUP BY dd.Year, dd.Quarter, de.EmployeeKey, de.EmployeeID, de.FullName, de.Title
-)
-SELECT
-    es.*,
-    RANK() OVER (PARTITION BY Year, Quarter ORDER BY TotalNetAmount DESC) AS EmployeeRankByRevenue,
-    RANK() OVER (PARTITION BY Year, Quarter ORDER BY TotalOrders DESC) AS EmployeeRankByOrders,
-    GETDATE() AS LoadDate
-FROM EmployeeSales es
-ORDER BY Year, Quarter, EmployeeRankByRevenue</property>
-                    <property name="AccessMode" dataType="System.Int32">2</property>
-                  </properties>
-                  <connections>
-                    <connection connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
-                  </connections>
-                </component>
-                <component refId="Package\Build Aggregations\Build Employee Performance\Insert Employee Agg" componentClassID="Microsoft.OLEDBDestination" name="Insert Employee Agg" version="4">
-                  <properties>
-                    <property name="OpenRowset" dataType="System.String">[dbo].[Agg_EmployeePerformance]</property>
-                    <property name="AccessMode" dataType="System.Int32">3</property>
-                  </properties>
-                  <connections>
-                    <connection connectionManagerID="Package.ConnectionManagers[NorthwindDW]" name="OleDbConnection" />
-                  </connections>
-                </component>
-              </components>
-              <paths>
-                <path startId="Package\Build Aggregations\Build Employee Performance\Employee Aggregation Query.Outputs[OLE DB Source Output]" endId="Package\Build Aggregations\Build Employee Performance\Insert Employee Agg.Inputs[OLE DB Destination Input]" />
-              </paths>
-            </pipeline>
-          </DTS:ObjectData>
-        </DTS:Executable>
-      </DTS:Executables>
-    </DTS:Executable>
-    <DTS:Executable DTS:refId="Package\Build Daily Snapshot" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:Description="Build daily order snapshot" DTS:DTSID="{EXEC-SNAP}" DTS:ObjectName="Build Daily Snapshot">
+    <DTS:Executable DTS:refId="Package\Build Sales By Category" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-AGG-CAT}" DTS:ExecutableType="Microsoft.ExecuteSQLTask" DTS:ObjectName="Build Sales By Category">
       <DTS:ObjectData>
         <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0006}" SQLTask:SqlStatementSource="
--- Build daily snapshot from fact table
-INSERT INTO dbo.Fact_OrderSnapshot (
-    DateKey, TotalOrders, TotalOrderValue, TotalFreight, AvgOrderValue,
-    TotalLineItems, UniqueCustomers, UniqueProducts, OrdersShipped,
-    OrdersPending, AvgDaysToShip, LateShipmentCount, LateShipmentPct, LoadDate
+TRUNCATE TABLE dbo.Agg_SalesByCategory;
+INSERT INTO dbo.Agg_SalesByCategory (
+    Year, Quarter, Month, CategoryID, CategoryName, TotalQuantity,
+    TotalGrossAmount, TotalDiscountAmount, TotalNetAmount, OrderCount,
+    AvgUnitPrice, AvgDiscount, CategoryRankByRevenue, CategoryRankByQuantity
 )
 SELECT
-    fs.DateKey,
-    COUNT(DISTINCT fs.OrderID) AS TotalOrders,
-    SUM(fs.NetAmount) AS TotalOrderValue,
-    SUM(fs.FreightAllocation) AS TotalFreight,
-    AVG(fs.NetAmount) AS AvgOrderValue,
-    COUNT(*) AS TotalLineItems,
-    COUNT(DISTINCT fs.CustomerKey) AS UniqueCustomers,
-    COUNT(DISTINCT fs.ProductKey) AS UniqueProducts,
-    SUM(CASE WHEN fs.ShippedDate IS NOT NULL THEN 1 ELSE 0 END) AS OrdersShipped,
-    SUM(CASE WHEN fs.ShippedDate IS NULL THEN 1 ELSE 0 END) AS OrdersPending,
-    AVG(CAST(fs.DaysToShip AS DECIMAL(10,2))) AS AvgDaysToShip,
-    SUM(CAST(fs.IsLateShipment AS INT)) AS LateShipmentCount,
-    CAST(100.0 * SUM(CAST(fs.IsLateShipment AS INT)) / NULLIF(COUNT(*), 0) AS DECIMAL(5,2)) AS LateShipmentPct,
-    GETDATE() AS LoadDate
+    dd.Year,
+    dd.Quarter,
+    dd.Month,
+    dp.CategoryID,
+    dp.CategoryName,
+    SUM(fs.Quantity) AS TotalQuantity,
+    SUM(fs.GrossAmount) AS TotalGrossAmount,
+    SUM(fs.DiscountAmount) AS TotalDiscountAmount,
+    SUM(fs.NetAmount) AS TotalNetAmount,
+    COUNT(DISTINCT fs.OrderID) AS OrderCount,
+    AVG(fs.UnitPrice) AS AvgUnitPrice,
+    AVG(fs.Discount) AS AvgDiscount,
+    RANK() OVER (PARTITION BY dd.Year, dd.Quarter, dd.Month ORDER BY SUM(fs.NetAmount) DESC) AS CategoryRankByRevenue,
+    RANK() OVER (PARTITION BY dd.Year, dd.Quarter, dd.Month ORDER BY SUM(fs.Quantity) DESC) AS CategoryRankByQuantity
 FROM dbo.Fact_Sales fs
-WHERE fs.DateKey NOT IN (SELECT DateKey FROM dbo.Fact_OrderSnapshot)
-GROUP BY fs.DateKey
-ORDER BY fs.DateKey;
+INNER JOIN dbo.Dim_Date dd ON fs.DateKey = dd.DateKey
+INNER JOIN dbo.Dim_Product dp ON fs.ProductKey = dp.ProductKey
+GROUP BY dd.Year, dd.Quarter, dd.Month, dp.CategoryID, dp.CategoryName;
 " xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
       </DTS:ObjectData>
     </DTS:Executable>
-    <DTS:Executable DTS:refId="Package\Log Success" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-AGG2}" DTS:ObjectName="Log Success">
+    <DTS:Executable DTS:refId="Package\Build Sales By Customer" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-AGG-CUS}" DTS:ExecutableType="Microsoft.ExecuteSQLTask" DTS:ObjectName="Build Sales By Customer">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0006}" SQLTask:SqlStatementSource="
+TRUNCATE TABLE dbo.Agg_SalesByCustomer;
+INSERT INTO dbo.Agg_SalesByCustomer (
+    Year, CustomerKey, CustomerID, CompanyName, Country, TotalOrders,
+    TotalQuantity, TotalNetAmount, TotalFreight, AvgOrderValue,
+    AvgDaysToShip, UniqueProductsOrdered, UniqueCategoriesOrdered,
+    CustomerRankByRevenue, CustomerRankByOrders
+)
+SELECT
+    dd.Year,
+    dc.CustomerKey,
+    dc.CustomerID,
+    dc.CompanyName,
+    dc.Country,
+    COUNT(DISTINCT fs.OrderID) AS TotalOrders,
+    SUM(fs.Quantity) AS TotalQuantity,
+    SUM(fs.NetAmount) AS TotalNetAmount,
+    SUM(fs.FreightAllocation) AS TotalFreight,
+    AVG(fs.NetAmount) AS AvgOrderValue,
+    AVG(CAST(fs.DaysToShip AS DECIMAL(10,2))) AS AvgDaysToShip,
+    COUNT(DISTINCT fs.ProductKey) AS UniqueProductsOrdered,
+    COUNT(DISTINCT dp.CategoryID) AS UniqueCategoriesOrdered,
+    RANK() OVER (PARTITION BY dd.Year ORDER BY SUM(fs.NetAmount) DESC) AS CustomerRankByRevenue,
+    RANK() OVER (PARTITION BY dd.Year ORDER BY COUNT(DISTINCT fs.OrderID) DESC) AS CustomerRankByOrders
+FROM dbo.Fact_Sales fs
+INNER JOIN dbo.Dim_Date dd ON fs.DateKey = dd.DateKey
+INNER JOIN dbo.Dim_Customer dc ON fs.CustomerKey = dc.CustomerKey
+INNER JOIN dbo.Dim_Product dp ON fs.ProductKey = dp.ProductKey
+GROUP BY dd.Year, dc.CustomerKey, dc.CustomerID, dc.CompanyName, dc.Country;
+" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Build Employee Performance" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-AGG-EMP}" DTS:ExecutableType="Microsoft.ExecuteSQLTask" DTS:ObjectName="Build Employee Performance">
+      <DTS:ObjectData>
+        <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0006}" SQLTask:SqlStatementSource="
+TRUNCATE TABLE dbo.Agg_EmployeePerformance;
+INSERT INTO dbo.Agg_EmployeePerformance (
+    Year, Quarter, EmployeeKey, EmployeeID, FullName, Title,
+    TotalOrders, TotalCustomers, TotalNetAmount, TotalFreight,
+    AvgOrderValue, LateShipmentCount, OnTimeDeliveryPct,
+    EmployeeRankByRevenue, EmployeeRankByOrders
+)
+SELECT
+    dd.Year,
+    dd.Quarter,
+    de.EmployeeKey,
+    de.EmployeeID,
+    de.FullName,
+    de.Title,
+    COUNT(DISTINCT fs.OrderID) AS TotalOrders,
+    COUNT(DISTINCT fs.CustomerKey) AS TotalCustomers,
+    SUM(fs.NetAmount) AS TotalNetAmount,
+    SUM(fs.FreightAllocation) AS TotalFreight,
+    AVG(fs.NetAmount) AS AvgOrderValue,
+    SUM(CAST(fs.IsLateShipment AS INT)) AS LateShipmentCount,
+    CAST(100.0 * SUM(CASE WHEN fs.IsLateShipment = 0 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS DECIMAL(5,2)) AS OnTimeDeliveryPct,
+    RANK() OVER (PARTITION BY dd.Year, dd.Quarter ORDER BY SUM(fs.NetAmount) DESC) AS EmployeeRankByRevenue,
+    RANK() OVER (PARTITION BY dd.Year, dd.Quarter ORDER BY COUNT(DISTINCT fs.OrderID) DESC) AS EmployeeRankByOrders
+FROM dbo.Fact_Sales fs
+INNER JOIN dbo.Dim_Date dd ON fs.DateKey = dd.DateKey
+INNER JOIN dbo.Dim_Employee de ON fs.EmployeeKey = de.EmployeeKey
+GROUP BY dd.Year, dd.Quarter, de.EmployeeKey, de.EmployeeID, de.FullName, de.Title;
+" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
+      </DTS:ObjectData>
+    </DTS:Executable>
+    <DTS:Executable DTS:refId="Package\Log Success" DTS:CreationName="Microsoft.ExecuteSQLTask" DTS:DTSID="{EXEC-LOG-AGG2}" DTS:ExecutableType="Microsoft.ExecuteSQLTask" DTS:ObjectName="Log Success">
       <DTS:ObjectData>
         <SQLTask:SqlTaskData SQLTask:Connection="{CONN-DW-0006}" SQLTask:SqlStatementSource="UPDATE dbo.ETL_Log SET EndTime = GETDATE(), Status = 'Succeeded' WHERE PackageName = '06_Build_Aggregations' AND Status = 'Running'" xmlns:SQLTask="www.microsoft.com/sqlserver/dts/tasks/sqltask" />
       </DTS:ObjectData>
     </DTS:Executable>
   </DTS:Executables>
   <DTS:PrecedenceConstraints>
-    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Log to Build]" DTS:CreationName="" DTS:DTSID="{PC-0006-0001}" DTS:From="Package\Log Start" DTS:LogicalAnd="True" DTS:ObjectName="Log to Build" DTS:To="Package\Build Aggregations" />
-    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Build to Snapshot]" DTS:CreationName="" DTS:DTSID="{PC-0006-0002}" DTS:From="Package\Build Aggregations" DTS:LogicalAnd="True" DTS:ObjectName="Build to Snapshot" DTS:To="Package\Build Daily Snapshot" />
-    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Snapshot to Log]" DTS:CreationName="" DTS:DTSID="{PC-0006-0003}" DTS:From="Package\Build Daily Snapshot" DTS:LogicalAnd="True" DTS:ObjectName="Snapshot to Log" DTS:To="Package\Log Success" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Log to Cat]" DTS:CreationName="" DTS:DTSID="{PC-0006-0001}" DTS:From="Package\Log Start" DTS:LogicalAnd="True" DTS:ObjectName="Log to Cat" DTS:To="Package\Build Sales By Category" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Cat to Cus]" DTS:CreationName="" DTS:DTSID="{PC-0006-0002}" DTS:From="Package\Build Sales By Category" DTS:LogicalAnd="True" DTS:ObjectName="Cat to Cus" DTS:To="Package\Build Sales By Customer" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Cus to Emp]" DTS:CreationName="" DTS:DTSID="{PC-0006-0003}" DTS:From="Package\Build Sales By Customer" DTS:LogicalAnd="True" DTS:ObjectName="Cus to Emp" DTS:To="Package\Build Employee Performance" />
+    <DTS:PrecedenceConstraint DTS:refId="Package.PrecedenceConstraints[Emp to Log]" DTS:CreationName="" DTS:DTSID="{PC-0006-0004}" DTS:From="Package\Build Employee Performance" DTS:LogicalAnd="True" DTS:ObjectName="Emp to Log" DTS:To="Package\Log Success" />
   </DTS:PrecedenceConstraints>
 </DTS:Executable>
